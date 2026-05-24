@@ -12,7 +12,8 @@ python -m context_clock.run --model llama3.2 --turns 18 --limit 1024 --cadence 3
 ## What this measures
 
 A long-running session on a finite context window, with no external memory. Each turn
-injects a uniquely-answerable fact ("Memo N: the vault code is kNNN"); every 3 turns we
+injects a uniquely-answerable fact — a varied NIAH-style haystack (see `documents.py`) with
+the needle "Memo N: … the vault code is kNNN …" buried in the middle; every 3 turns we
 probe recall of the oldest facts; when the live context fills past 85% of the window, the
 agent **self-compacts** (lossily summarizes the oldest turns). We record, per turn, the
 live context size, cumulative tokens spent, recall, and compaction events.
@@ -36,10 +37,10 @@ which is the recall cost.
 
 ## Honest caveats
 
-- **Recall is noisy, not monotonic** (33% at turn 15, back to 100% at 18). v1 probes only
-  the 3 oldest facts, and lossy compaction sometimes retains a code by chance. A cleaner
-  decay curve needs: more probed facts, a smaller limit, or more turns. The harness is
-  sound; the signal-to-noise is a v1 tuning matter.
+- **Recall is noisy under compaction, not monotonic** (33% at turn 15, back to 100% at 18).
+  v1 probes only the 3 oldest facts, and lossy compaction sometimes retains a code by chance.
+  The naive `--no-compaction` baseline (below) gives the clean monotonic decay — so the noise
+  is a compaction-plus-tuning artifact, not a harness flaw.
 - **Single small model.** This is one 3B model at a 1024 cap. Results demonstrate the
   *phenomenon* and validate the harness — they are **not** a frontier-model claim.
 - **Not 1:1 across models.** The arc *shape* reproduces everywhere, but onset/steepness/scale
@@ -92,15 +93,47 @@ Retrieve-what's-needed stays flat and never forgets; stuff-everything explodes a
 — Attestor / Zep / Mem0 — implement the same `add` / `recall` interface and slot in here,
 where the interesting question becomes how well *semantic* retrieval holds up.)
 
+## Naive baseline: no compaction (llama3.2, ctx 1024, 18 turns)
+
+Same workload with `--no-compaction` — let the window overflow, never reclaim headroom:
+
+![no-compaction: clean decay to 0%](results/nocompact/llama3.2_ctx1024.png)
+
+| Turn | 3 | 6 | 9 | 12 | 15 | 18 |
+|---|---|---|---|---|---|---|
+| Recall (oldest 3) | 100% | 100% | 100% | 67% | **0%** | **0%** |
+
+Live context climbs to ~958 then **plateaus at the 1024 cap**: the model only ever sees the
+last ~1024 tokens, so the oldest memos are silently truncated and recall of them **decays
+cleanly to 0%**. This is the clearest "context rot" curve in the project — with no compaction
+there's no sawtooth, the window just slides forward and forgets. (The compaction run above is
+noisy *because* lossy summaries sometimes keep a code by chance.)
+
+## Native-window feasibility (local, single timed call)
+
+Is a native-size window runnable locally at all? `documents.py` exists to fill them — a varied
+haystack reaches native scale in a few turns. Measured on llama3.2 (3B):
+
+| Window | Prompt tokens | Latency | Needle found |
+|---|---|---|---|
+| 8K | 5,397 | 11.2s | ✓ |
+| 16K | 11,767 | 29.4s | ✓ |
+
+≈2.5 ms/token. **Viable** on a small model at ≤16K with `--timeout` raised. The earlier
+16K/32K/128K sweep timed out only because it combined a **14B–32B model × a large window ×
+the 120s cap** — not an inherent wall. ≥32K or 14B+ models stay impractical locally.
+
 ## Status
 
-v1 complete: 38 tests green (compaction, grader, meter, driver helpers, retrieval memory
+v1 complete: 47 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents
 test-first; provider + end-to-end validated by real runs). 100% local, reproducible with
 Ollama only.
 
 ## Next
 
-- Tune for a cleaner decay curve (more probes / smaller limit / longer run).
-- `--no-compaction` naive baseline for contrast (overflow without intervention).
+- ✅ `--no-compaction` naive baseline (done — see above; gives the clean decay curve).
+- ✅ Varied NIAH haystacks (done — `documents.py`, wired into the driver).
+- Run a full native-window arc (llama3.2, 8K–16K, raised `--timeout`), now that per-call
+  latency is known to be tractable.
 - Multi-model sweep (`qwen2.5:14b`, `phi4:14b`) to show the non-1:1 profiles.
 - Later: plug in a memory backend (Attestor / Zep) to show the arc flattening.
