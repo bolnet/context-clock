@@ -44,6 +44,31 @@ signal we track.
 > and memory sections below are *agent-layer interventions* we invoke on top of the model, not
 > behaviors the model exhibits on its own.
 
+## Cross-model rot — and a measurement confound
+
+Same rot-until-complete on a 14B model (qwen2.5:14b) at ctx 1024, with per-turn token
+usage now recorded:
+
+![qwen rot](results/qwen2.5_14b-instruct_rot_ctx1024.png)
+
+| Model | Recall trajectory | Fully rotted |
+|---|---|---|
+| llama3.2 (3B) | 100% → 67 → 33 → 0 (clean) | turn 16 |
+| qwen2.5:14b | 100% (t1–12) → noisy 67/100/33 … → 0 | turn 27 |
+
+The 14B model seems to resist rot far longer — but that's a **confound, not robustness**.
+Both models truncate at the same ~980-token window, so by turn 16 the oldest memos (1–3)
+are *gone from the context* — yet qwen answers their codes at 100%. It can only do that by
+**inferring the pattern**: the needle is deterministic (`Memo N → k{N:03d}`), so a capable
+model reconstructs `k001` from the visible recent memos instead of recalling it. The 3B
+model can't; the 14B can. So the metric is partly **pattern-inference, not retention** — a
+smarter model *masks* rot. Fix coming: randomize the needle so it can't be derived from its
+index, forcing true recall.
+
+**Per-turn token usage** (`turn_tokens`, `prompt_tokens`, `completion_tokens`) is now
+recorded per turn in the CSV and printed live. The per-turn cost plateaus once the window
+saturates (~2.95K tokens/turn for qwen: 3 probes × a ~980-token prompt).
+
 ## Agent intervention: self-compaction (vs the raw rot above)
 
 ![arc](results/llama3.2_ctx1024.png)
@@ -151,7 +176,7 @@ the 120s cap** — not an inherent wall. ≥32K or 14B+ models stay impractical 
 
 ## Status
 
-v1 complete: 53 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents, rot-until-complete stop logic
+v1 complete: 55 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents, rot-until-complete stop logic, per-turn token usage
 test-first; provider + end-to-end validated by real runs). 100% local, reproducible with
 Ollama only.
 

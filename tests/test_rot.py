@@ -50,3 +50,14 @@ class TestRunStopsWhenRotted:
         # recall is 0 from turn 1; rot declared after a streak of 3
         assert len(rows) == 3
         assert all(r.recall == 0.0 for r in rows)
+
+    def test_records_per_turn_token_usage(self):
+        # stub reports prompt=10, completion=1 per call; turn 1 makes one probe call
+        rows = run_session(
+            _AlwaysWrong(), turns=50, limit=1024, cadence=1,
+            compaction_enabled=False, stop_when_rotted=True, rot_streak=3,
+        )
+        first = rows[0]
+        assert first.prompt_tokens == 10
+        assert first.completion_tokens == 1
+        assert first.turn_tokens == 11   # prompt + completion spent this turn

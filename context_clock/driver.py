@@ -40,6 +40,9 @@ class TurnRow:
     cumulative_tokens: int
     recall: float | None
     compaction_event: bool
+    turn_tokens: int = 0       # tokens spent this turn (prompt + completion + any compaction)
+    prompt_tokens: int = 0     # prompt tokens evaluated this turn (sum across calls)
+    completion_tokens: int = 0  # completion tokens generated this turn
 
 
 def make_fact(n: int, pad_repeat: int = 4) -> Fact:
@@ -115,6 +118,10 @@ def run_session(
         transcript.append({"role": "user", "content": fact.statement})
         fact_costs.append(_estimate_tokens(fact.statement))
 
+        prev_total = meter.cumulative_total
+        prev_prompt = meter.cumulative_prompt
+        prev_completion = meter.cumulative_completion
+
         recall: float | None = None
         if due_probe(turn, cadence):
             targets = probe_targets(len(facts), probe_k)
@@ -157,6 +164,9 @@ def run_session(
                 cumulative_tokens=meter.cumulative_total,
                 recall=recall,
                 compaction_event=compaction_event,
+                turn_tokens=meter.cumulative_total - prev_total,
+                prompt_tokens=meter.cumulative_prompt - prev_prompt,
+                completion_tokens=meter.cumulative_completion - prev_completion,
             )
         )
 
@@ -193,6 +203,10 @@ def run_memory_session(
         facts.append(fact)
         memory.add(fact)  # ingest is a store, not an LLM call — ~free
 
+        prev_total = meter.cumulative_total
+        prev_prompt = meter.cumulative_prompt
+        prev_completion = meter.cumulative_completion
+
         recall: float | None = None
         if due_probe(turn, cadence):
             targets = probe_targets(len(facts), probe_k)
@@ -214,6 +228,9 @@ def run_memory_session(
                 cumulative_tokens=meter.cumulative_total,
                 recall=recall,
                 compaction_event=False,
+                turn_tokens=meter.cumulative_total - prev_total,
+                prompt_tokens=meter.cumulative_prompt - prev_prompt,
+                completion_tokens=meter.cumulative_completion - prev_completion,
             )
         )
 
