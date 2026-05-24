@@ -5,3 +5,6 @@ __pycache__/
 venv/
 .env
 *.png
+*.jpeg
+*.jpg
+.playwright-mcp/
