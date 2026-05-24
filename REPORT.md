@@ -6,6 +6,9 @@
 **Reproduce:**
 ```bash
 ollama pull llama3.2
+# headline: rot until complete — no compaction, probe every turn, stop at full rot
+python -m context_clock.run --model llama3.2 --until-rotted --limit 1024 --turns 60
+# agent-compaction intervention, for contrast
 python -m context_clock.run --model llama3.2 --turns 18 --limit 1024 --cadence 3 --threshold 0.85
 ```
 
@@ -18,7 +21,30 @@ probe recall of the oldest facts; when the live context fills past 85% of the wi
 agent **self-compacts** (lossily summarizes the oldest turns). We record, per turn, the
 live context size, cumulative tokens spent, recall, and compaction events.
 
-## Result
+## The core measurement: rot until complete (no intervention)
+
+Keep adding a document every turn and probe recall **every turn**, with **no compaction**
+— nothing is invoked, the model is on its own. We run until it's **fully rotted** (recall
+pinned at 0% for 3 straight probes), not to a fixed turn count.
+
+![rot to zero](results/llama3.2_rot_ctx1024.png)
+
+| Turn | 1–11 | 12 | 13 | 14 | 15 | 16 |
+|---|---|---|---|---|---|---|
+| Recall (oldest 3) | 100% | 67% | 33% | **0%** | **0%** | **0%** |
+
+llama3.2, ctx 1024. Accuracy holds at 100% while everything still fits, then **collapses
+over three turns** (100 → 67 → 33 → 0) as the prompt overflows the window and the oldest
+memos are truncated away — and stays at 0%. The run **ends itself at turn 16** on sustained
+zero. This is raw context rot with nothing intervening, and the accuracy drop is exactly the
+signal we track.
+
+> **Models don't self-compact.** A raw LLM never summarizes its own history — when the prompt
+> exceeds the context window it simply **truncates** (drops the oldest tokens). The compaction
+> and memory sections below are *agent-layer interventions* we invoke on top of the model, not
+> behaviors the model exhibits on its own.
+
+## Agent intervention: self-compaction (vs the raw rot above)
 
 ![arc](results/llama3.2_ctx1024.png)
 
@@ -125,12 +151,13 @@ the 120s cap** — not an inherent wall. ≥32K or 14B+ models stay impractical 
 
 ## Status
 
-v1 complete: 47 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents
+v1 complete: 53 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents, rot-until-complete stop logic
 test-first; provider + end-to-end validated by real runs). 100% local, reproducible with
 Ollama only.
 
 ## Next
 
+- ✅ Rot-until-complete stress mode (done — `--until-rotted`; the headline measurement above).
 - ✅ `--no-compaction` naive baseline (done — see above; gives the clean decay curve).
 - ✅ Varied NIAH haystacks (done — `documents.py`, wired into the driver).
 - Run a full native-window arc (llama3.2, 8K–16K, raised `--timeout`), now that per-call
