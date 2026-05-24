@@ -64,11 +64,13 @@ context. Re-running with unpredictable needles (ctx 1024, no compaction, probe e
 |---|---|---|
 | llama3.2 (3B) | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
 | qwen2.5:14b | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
+| phi4:14b | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
 
-**Identical.** Once the answer can't be guessed, the 14B model rots at exactly the same turn, on
-the same curve, as the 3B. **Raw context rot is model-independent** — truncation drops the oldest
-tokens regardless of model capacity. (Contrast the *compaction* experiment below, where model
-size genuinely matters for recall robustness to lossy summaries — a different question.)
+**Identical across all three.** Once the answer can't be guessed, a 3B model and two different
+14B models rot at exactly the same turn, on the same curve. **Raw context rot is model-independent**
+— truncation drops the oldest tokens regardless of model capacity or family. (Contrast the
+*compaction* experiment below, where model size genuinely matters for recall robustness to lossy
+summaries — a different question.)
 
 **Per-turn token usage** (`turn_tokens`, `prompt_tokens`, `completion_tokens`) is recorded each
 turn in the CSV and printed live; the per-turn cost plateaus at ~2.96K tokens once the window
