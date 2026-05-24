@@ -56,12 +56,15 @@ def main() -> None:
         print(f"\nmodel={args.model}  limit={args.limit}  mode=memory\n")
     else:
         print(f"\nmodel={args.model}  limit={args.limit}  cadence={args.cadence}  threshold={args.threshold}  compaction={not args.no_compaction}\n")
-    print(f"{'turn':>4} {'ctx_tok':>8} {'cum_tok':>9} {'recall':>7}  event")
-    print("-" * 44)
+    print(f"{'turn':>4} {'ctx_tok':>8} {'used':>7} {'prompt':>7} {'compl':>6} {'cum_tok':>9} {'recall':>7}  event")
+    print("-" * 66)
     for r in rows:
         recall = "" if r.recall is None else f"{r.recall * 100:3.0f}%"
         event = "  <<< SELF-COMPACT" if r.compaction_event else ""
-        print(f"{r.turn:>4} {r.context_tokens:>8} {r.cumulative_tokens:>9} {recall:>7}{event}")
+        print(
+            f"{r.turn:>4} {r.context_tokens:>8} {r.turn_tokens:>7} {r.prompt_tokens:>7} "
+            f"{r.completion_tokens:>6} {r.cumulative_tokens:>9} {recall:>7}{event}"
+        )
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)

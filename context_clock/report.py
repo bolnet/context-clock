@@ -13,7 +13,16 @@ from pathlib import Path
 
 from .driver import TurnRow
 
-CSV_HEADER = ["turn", "context_tokens", "cumulative_tokens", "recall", "compaction_event"]
+CSV_HEADER = [
+    "turn",
+    "context_tokens",
+    "cumulative_tokens",
+    "turn_tokens",
+    "prompt_tokens",
+    "completion_tokens",
+    "recall",
+    "compaction_event",
+]
 
 
 def write_csv(rows: list[TurnRow], path: str | Path) -> None:
@@ -26,6 +35,9 @@ def write_csv(rows: list[TurnRow], path: str | Path) -> None:
                     row.turn,
                     row.context_tokens,
                     row.cumulative_tokens,
+                    row.turn_tokens,
+                    row.prompt_tokens,
+                    row.completion_tokens,
                     "" if row.recall is None else row.recall,
                     int(row.compaction_event),
                 ]
