@@ -57,6 +57,21 @@ def probe_targets(num_injected: int, k: int) -> list[int]:
     return list(range(min(k, num_injected)))
 
 
+def is_fully_rotted(
+    recalls: list[float | None], streak: int = 3, floor: float = 0.0
+) -> bool:
+    """True when the last ``streak`` *recorded* recalls are all at/below ``floor``.
+
+    ``None`` entries (non-probe turns) are ignored — they neither count toward
+    the streak nor reset it. Used to end a no-compaction stress run once recall
+    accuracy has bottomed out and stayed there (the model is "fully rotted").
+    """
+    recorded = [r for r in recalls if r is not None]
+    if len(recorded) < streak:
+        return False
+    return all(r <= floor for r in recorded[-streak:])
+
+
 def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
@@ -72,8 +87,16 @@ def run_session(
     keep_floor: float = 0.5,
     compaction_enabled: bool = True,
     pad_repeat: int = 4,
+    stop_when_rotted: bool = False,
+    rot_streak: int = 3,
 ) -> list[TurnRow]:
-    """Run the arc and return one row per turn."""
+    """Run the arc and return one row per turn.
+
+    When ``stop_when_rotted`` is set, ``turns`` is a safety cap: the run ends
+    early once recall accuracy has stayed at the floor for ``rot_streak``
+    consecutive probes (full context rot). Pair with ``compaction_enabled=False``
+    and ``cadence=1`` for the pure rot stress test.
+    """
     meter = TokenMeter()
     facts: list[Fact] = []
     # transcript[0] is the preamble; the rest are fact / summary messages.
@@ -136,6 +159,9 @@ def run_session(
                 compaction_event=compaction_event,
             )
         )
+
+        if stop_when_rotted and is_fully_rotted([r.recall for r in rows], streak=rot_streak):
+            break
 
     return rows
 

@@ -18,6 +18,7 @@ def main() -> None:
     parser.add_argument("--cadence", type=int, default=3, help="probe every N turns")
     parser.add_argument("--threshold", type=float, default=0.85, help="fraction of limit that triggers compaction")
     parser.add_argument("--no-compaction", action="store_true", help="naive baseline: let it overflow")
+    parser.add_argument("--until-rotted", action="store_true", help="rot stress test: no compaction, probe every turn, run until recall stays at 0%% (full rot); --turns is the safety cap")
     parser.add_argument("--memory", action="store_true", help="memory backend: retrieve relevant fact, keep context flat")
     parser.add_argument("--pad-repeat", type=int, default=4, help="haystack size dial per memo (×16 words ≈ tokens/turn); raise to fill big windows")
     parser.add_argument("--timeout", type=float, default=120.0, help="per-call timeout (s); raise for big windows / cold loads")
@@ -27,6 +28,17 @@ def main() -> None:
     provider = OllamaProvider(model=args.model, num_ctx=args.limit, timeout=args.timeout)
     if args.memory:
         rows = run_memory_session(provider, turns=args.turns, cadence=args.cadence, pad_repeat=args.pad_repeat)
+    elif args.until_rotted:
+        # pure rot stress: no compaction, probe every turn, stop on sustained 0% recall
+        rows = run_session(
+            provider,
+            turns=args.turns,
+            limit=args.limit,
+            cadence=1,
+            compaction_enabled=False,
+            pad_repeat=args.pad_repeat,
+            stop_when_rotted=True,
+        )
     else:
         rows = run_session(
             provider,
@@ -38,7 +50,12 @@ def main() -> None:
             pad_repeat=args.pad_repeat,
         )
 
-    print(f"\nmodel={args.model}  limit={args.limit}  cadence={args.cadence}  threshold={args.threshold}\n")
+    if args.until_rotted:
+        print(f"\nmodel={args.model}  limit={args.limit}  mode=until-rotted (no compaction, probe every turn)\n")
+    elif args.memory:
+        print(f"\nmodel={args.model}  limit={args.limit}  mode=memory\n")
+    else:
+        print(f"\nmodel={args.model}  limit={args.limit}  cadence={args.cadence}  threshold={args.threshold}  compaction={not args.no_compaction}\n")
     print(f"{'turn':>4} {'ctx_tok':>8} {'cum_tok':>9} {'recall':>7}  event")
     print("-" * 44)
     for r in rows:
@@ -48,7 +65,12 @@ def main() -> None:
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
-    mode = "memory" if args.memory else f"ctx{args.limit}"
+    if args.memory:
+        mode = "memory"
+    elif args.until_rotted:
+        mode = f"rot_ctx{args.limit}"
+    else:
+        mode = f"ctx{args.limit}"
     tag = f"{args.model.replace(':', '_').replace('/', '_')}_{mode}"
     csv_path = out_dir / f"{tag}.csv"
     chart_path = out_dir / f"{tag}.png"
