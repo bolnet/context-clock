@@ -45,8 +45,10 @@ def make_document(n: int, words: int = 200) -> Document:
     needle-in-a-haystack position). ``words`` controls the haystack size so
     callers can dial tokens-per-turn up to fill large native windows.
     """
-    answer = f"k{n:03d}"
     rng = random.Random(n)  # seed by index → varied across n, stable per n
+    # Deterministic per index but NOT derivable from it: a capable model can't
+    # reconstruct the code by spotting a pattern, so it must actually recall it.
+    answer = f"k{rng.randrange(16**5):05x}"
     body = [rng.choice(_VOCAB) for _ in range(max(1, words))]
     pos = len(body) // 2
     needle = _NEEDLE.format(answer=answer)

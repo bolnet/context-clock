@@ -15,7 +15,7 @@ class TestRetrievalMemory:
         memory = RetrievalMemory()
         for n in (1, 2, 3):
             memory.add(make_fact(n))
-        assert memory.recall(2).answer == "k002"
+        assert memory.recall(2).answer == make_fact(2).answer
 
     def test_recall_missing_returns_none(self):
         memory = RetrievalMemory()

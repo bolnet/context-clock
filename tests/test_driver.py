@@ -10,12 +10,13 @@ from context_clock.driver import make_fact, due_probe, probe_targets
 
 class TestMakeFact:
     def test_answer_is_unique_and_deterministic(self):
-        assert make_fact(7).answer == "k007"
+        # deterministic per index, but not the naive derivable mapping
         assert make_fact(7).answer == make_fact(7).answer
+        assert make_fact(7).answer != "k007"
 
     def test_statement_embeds_the_answer(self):
         fact = make_fact(7)
-        assert "k007" in fact.statement
+        assert fact.answer in fact.statement
         assert fact.index == 7
 
     def test_distinct_facts_have_distinct_answers(self):

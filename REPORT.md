@@ -16,7 +16,8 @@ python -m context_clock.run --model llama3.2 --turns 18 --limit 1024 --cadence 3
 
 A long-running session on a finite context window, with no external memory. Each turn
 injects a uniquely-answerable fact — a varied NIAH-style haystack (see `documents.py`) with
-the needle "Memo N: … the vault code is kNNN …" buried in the middle; every 3 turns we
+the needle "Memo N: … the vault code is <code> …" buried in the middle, where the code is
+deterministic per memo but **unpredictable** (e.g. `k44cb6`) so it can't be inferred; every 3 turns we
 probe recall of the oldest facts; when the live context fills past 85% of the window, the
 agent **self-compacts** (lossily summarizes the oldest turns). We record, per turn, the
 live context size, cumulative tokens spent, recall, and compaction events.
@@ -44,30 +45,34 @@ signal we track.
 > and memory sections below are *agent-layer interventions* we invoke on top of the model, not
 > behaviors the model exhibits on its own.
 
-## Cross-model rot — and a measurement confound
+## Cross-model rot is model-independent (once the needle can't be guessed)
 
-Same rot-until-complete on a 14B model (qwen2.5:14b) at ctx 1024, with per-turn token
-usage now recorded:
+The first cross-model attempt used a *deterministic* needle (`Memo N → k{N:03d}`). Under that,
+qwen2.5:14b appeared to resist rot far longer than llama3.2 — full rot at turn 27 vs 16, even
+*recovering* to 100% at turns where it could no longer hold the oldest memos. That was a
+**confound, not robustness**: both models truncate at the same ~980-token window, so by turn 16
+memos 1–3 are gone from context — qwen was *inferring* the codes from the pattern in the visible
+recent memos, not recalling them. A 14B model spots that pattern; a 3B model doesn't.
+
+**Fix:** the needle is now a deterministic-but-**unpredictable** code (e.g. `k44cb6`), so it
+can't be reconstructed from the index — the only way to answer is to actually have the fact in
+context. Re-running with unpredictable needles (ctx 1024, no compaction, probe every turn):
 
 ![qwen rot](results/qwen2.5_14b-instruct_rot_ctx1024.png)
 
 | Model | Recall trajectory | Fully rotted |
 |---|---|---|
-| llama3.2 (3B) | 100% → 67 → 33 → 0 (clean) | turn 16 |
-| qwen2.5:14b | 100% (t1–12) → noisy 67/100/33 … → 0 | turn 27 |
+| llama3.2 (3B) | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
+| qwen2.5:14b | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
 
-The 14B model seems to resist rot far longer — but that's a **confound, not robustness**.
-Both models truncate at the same ~980-token window, so by turn 16 the oldest memos (1–3)
-are *gone from the context* — yet qwen answers their codes at 100%. It can only do that by
-**inferring the pattern**: the needle is deterministic (`Memo N → k{N:03d}`), so a capable
-model reconstructs `k001` from the visible recent memos instead of recalling it. The 3B
-model can't; the 14B can. So the metric is partly **pattern-inference, not retention** — a
-smarter model *masks* rot. Fix coming: randomize the needle so it can't be derived from its
-index, forcing true recall.
+**Identical.** Once the answer can't be guessed, the 14B model rots at exactly the same turn, on
+the same curve, as the 3B. **Raw context rot is model-independent** — truncation drops the oldest
+tokens regardless of model capacity. (Contrast the *compaction* experiment below, where model
+size genuinely matters for recall robustness to lossy summaries — a different question.)
 
-**Per-turn token usage** (`turn_tokens`, `prompt_tokens`, `completion_tokens`) is now
-recorded per turn in the CSV and printed live. The per-turn cost plateaus once the window
-saturates (~2.95K tokens/turn for qwen: 3 probes × a ~980-token prompt).
+**Per-turn token usage** (`turn_tokens`, `prompt_tokens`, `completion_tokens`) is recorded each
+turn in the CSV and printed live; the per-turn cost plateaus at ~2.96K tokens once the window
+saturates (3 probes × a ~980-token prompt).
 
 ## Agent intervention: self-compaction (vs the raw rot above)
 
@@ -176,12 +181,13 @@ the 120s cap** — not an inherent wall. ≥32K or 14B+ models stay impractical 
 
 ## Status
 
-v1 complete: 55 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents, rot-until-complete stop logic, per-turn token usage
+v1 complete: 57 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents, unpredictable needles, rot-until-complete stop logic, per-turn token usage
 test-first; provider + end-to-end validated by real runs). 100% local, reproducible with
 Ollama only.
 
 ## Next
 
+- ✅ Unpredictable needles (done — codes are deterministic per memo but not index-derivable, so recall can't be faked by inference).
 - ✅ Rot-until-complete stress mode (done — `--until-rotted`; the headline measurement above).
 - ✅ `--no-compaction` naive baseline (done — see above; gives the clean decay curve).
 - ✅ Varied NIAH haystacks (done — `documents.py`, wired into the driver).
