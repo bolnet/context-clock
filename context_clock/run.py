@@ -19,12 +19,14 @@ def main() -> None:
     parser.add_argument("--threshold", type=float, default=0.85, help="fraction of limit that triggers compaction")
     parser.add_argument("--no-compaction", action="store_true", help="naive baseline: let it overflow")
     parser.add_argument("--memory", action="store_true", help="memory backend: retrieve relevant fact, keep context flat")
+    parser.add_argument("--pad-repeat", type=int, default=4, help="haystack size dial per memo (×16 words ≈ tokens/turn); raise to fill big windows")
+    parser.add_argument("--timeout", type=float, default=120.0, help="per-call timeout (s); raise for big windows / cold loads")
     parser.add_argument("--out", default="results", help="directory for CSV + chart")
     args = parser.parse_args()
 
-    provider = OllamaProvider(model=args.model, num_ctx=args.limit)
+    provider = OllamaProvider(model=args.model, num_ctx=args.limit, timeout=args.timeout)
     if args.memory:
-        rows = run_memory_session(provider, turns=args.turns, cadence=args.cadence)
+        rows = run_memory_session(provider, turns=args.turns, cadence=args.cadence, pad_repeat=args.pad_repeat)
     else:
         rows = run_session(
             provider,
@@ -33,6 +35,7 @@ def main() -> None:
             cadence=args.cadence,
             threshold=args.threshold,
             compaction_enabled=not args.no_compaction,
+            pad_repeat=args.pad_repeat,
         )
 
     print(f"\nmodel={args.model}  limit={args.limit}  cadence={args.cadence}  threshold={args.threshold}\n")

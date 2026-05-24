@@ -15,15 +15,15 @@ from dataclasses import dataclass
 
 from .compaction import select_turns_to_compact, should_compact
 from .compactor import compact
+from .documents import make_document
 from .grader import grade
 from .meter import TokenMeter
 from .provider import OllamaProvider
 
-# Filler grows each memo so the context fills in a handful of turns.
-_FILLER = (
-    "Routine shift note: all subsystems nominal, logs rotated, no anomalies "
-    "observed, telemetry within bounds, and the duty roster unchanged. "
-) * 4
+# Each memo is a varied NIAH haystack (see ``documents``) rather than one
+# repeated sentence. ``pad_repeat`` is the tokens/turn dial: it scales the
+# haystack so a native (32K-128K) window fills in a reasonable number of turns.
+_WORDS_PER_REPEAT = 16  # ~words in the old filler sentence; keeps tokens/turn comparable
 
 
 @dataclass(frozen=True)
@@ -42,10 +42,11 @@ class TurnRow:
     compaction_event: bool
 
 
-def make_fact(n: int) -> Fact:
-    answer = f"k{n:03d}"
-    statement = f"Memo {n}: the vault code is {answer}. {_FILLER}"
-    return Fact(index=n, statement=statement, answer=answer)
+def make_fact(n: int, pad_repeat: int = 4) -> Fact:
+    # Inject a varied haystack with the needle planted inside, but keep the
+    # "Memo N:" label the probes ask about.
+    doc = make_document(n, words=pad_repeat * _WORDS_PER_REPEAT)
+    return Fact(index=n, statement=f"Memo {n}: {doc.statement}", answer=doc.answer)
 
 
 def due_probe(turn: int, cadence: int) -> bool:
@@ -70,6 +71,7 @@ def run_session(
     probe_k: int = 3,
     keep_floor: float = 0.5,
     compaction_enabled: bool = True,
+    pad_repeat: int = 4,
 ) -> list[TurnRow]:
     """Run the arc and return one row per turn."""
     meter = TokenMeter()
@@ -85,7 +87,7 @@ def run_session(
     rows: list[TurnRow] = []
 
     for turn in range(1, turns + 1):
-        fact = make_fact(turn)
+        fact = make_fact(turn, pad_repeat)
         facts.append(fact)
         transcript.append({"role": "user", "content": fact.statement})
         fact_costs.append(_estimate_tokens(fact.statement))
@@ -144,6 +146,7 @@ def run_memory_session(
     turns: int,
     cadence: int = 3,
     probe_k: int = 3,
+    pad_repeat: int = 4,
 ) -> list[TurnRow]:
     """Same workload, but retrieve only the relevant fact per probe.
 
@@ -160,7 +163,7 @@ def run_memory_session(
     rows: list[TurnRow] = []
 
     for turn in range(1, turns + 1):
-        fact = make_fact(turn)
+        fact = make_fact(turn, pad_repeat)
         facts.append(fact)
         memory.add(fact)  # ingest is a store, not an LLM call — ~free
 

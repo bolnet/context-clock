@@ -21,6 +21,16 @@ class TestMakeFact:
     def test_distinct_facts_have_distinct_answers(self):
         assert make_fact(1).answer != make_fact(2).answer
 
+    def test_filler_is_a_varied_haystack_not_one_repeated_sentence(self):
+        # a large memo is a varied NIAH haystack, not one sentence repeated:
+        # repeated filler caps distinct words ~20 regardless of size.
+        big = make_fact(1, pad_repeat=40)
+        assert len(set(big.statement.split())) > 40
+
+    def test_keeps_memo_framing_so_probes_align(self):
+        # the driver probes by "Memo N"; the injected fact must carry that label
+        assert make_fact(7).statement.startswith("Memo 7:")
+
 
 class TestDueProbe:
     def test_no_probe_on_turn_zero(self):
