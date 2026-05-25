@@ -29,6 +29,21 @@ Per-turn cost plateaus at ~2.95–3.0K tokens once the window saturates (~980 ct
 completing a turn — intractable locally; reasoning traces also confound a 16-token probe.
 Practical local ceiling on this hardware ≈ 24B.
 
+**Frontier model on the same rot test (API, constrained window):** DeepSeek-R1 via OpenRouter,
+same `--until-rotted` workload with a **client-side 1024-token window** (API models have no
+`num_ctx`, so we truncate the sent prompt instead) and `--probe-max-tokens 2048`.
+
+- Clean curve: recall 100% (t1–7) → 67 (t8) → 33 (t9) → **0 (t10–12)**, rot at **turn 12**.
+  Same monotonic shape as the local models → **model-independence holds for a 671B frontier
+  model too.** Onset is a few turns earlier (12 vs 16) only because the `len/4` estimate caps
+  R1's *effective* window to ~635 actual tokens (< the local 1024-actual) — a window-size
+  artifact, not a model difference.
+- **Reasoning-model caveat (important):** the first run used the default 16-token answer cap and
+  produced garbage — noisy 0/100/67/… incl. **0% at turn 1 with the fact in context** — because
+  R1 burns the budget *thinking* and its code gets truncated before it's emitted. Raising
+  `--probe-max-tokens` to 2048 de-confounded it. (~$0.07 total for both R1 rot runs.)
+  CSV: `results/deepseek_deepseek-r1_rot_ctx1024.csv`.
+
 ---
 
 ## 2. The pattern-inference confound (preserved — this CSV was overwritten by the fix)
