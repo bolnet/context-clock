@@ -187,6 +187,22 @@ haystack reaches native scale in a few turns. Measured on llama3.2 (3B):
 16K/32K/128K sweep timed out only because it combined a **14B–32B model × a large window ×
 the 120s cap** — not an inherent wall. ≥32K or 14B+ models stay impractical locally.
 
+## Frontier model: DeepSeek-R1 (API, native window) — a different question
+
+Local truncation rot is settled (model-independent). For a frontier model behind an API
+there's no `num_ctx` knob, so the question shifts to **intra-window** degradation — does the
+model lose a needle *inside* its window, by context size and position? We ran a
+needle-in-a-haystack-by-depth sweep on **DeepSeek-R1** (via OpenRouter): sizes {4K, 16K, 32K,
+64K} × depths {0–100%}, 20 probes.
+
+**Result: 20/20 — perfect recall at every size and depth, no intra-window degradation up to
+64K.** (~$0.27, 239s; the answer lands in R1's `content` after its reasoning trace.)
+
+The honest caveat: single-needle, verbatim, low-distractor retrieval is the *easy* regime that
+frontier models pass. This shows R1 handles basic retrieval to 64K — **not** that it never rots.
+Stressing it for real needs **128K+, multiple needles, distractors, or semantic queries** (see
+`BENCHMARK_LOG.md §8`). That's the next experiment, not a closed result.
+
 ## Status
 
 v1 complete: 57 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents, unpredictable needles, rot-until-complete stop logic, per-turn token usage
