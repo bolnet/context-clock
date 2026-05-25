@@ -17,6 +17,7 @@ class Completion:
     text: str
     prompt_tokens: int
     completion_tokens: int
+    cost: float | None = None  # billed USD (OpenRouter usage.cost); None when unbilled (local)
 
 
 class OllamaProvider:

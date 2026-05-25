@@ -36,6 +36,10 @@ def main() -> None:
     parser.add_argument("--no-compaction", action="store_true", help="naive baseline: let it overflow")
     parser.add_argument("--until-rotted", action="store_true", help="rot stress test: no compaction, probe every turn, run until recall stays at 0%% (full rot); --turns is the safety cap")
     parser.add_argument("--memory", action="store_true", help="memory backend: retrieve relevant fact, keep context flat")
+    parser.add_argument("--memory-backend", choices=["retrieval", "attestor"], default="retrieval", help="backend for --memory: 'retrieval' (ideal exact-key reference) or 'attestor' (real semantic retrieval over a running attestor api)")
+    parser.add_argument("--attestor-url", default="http://127.0.0.1:8090", help="base URL of a running `attestor api` server (used when --memory-backend attestor)")
+    parser.add_argument("--attestor-namespace", default=None, help="Attestor namespace to scope this run (default: a fresh per-run namespace so memos don't collide)")
+    parser.add_argument("--attestor-recall-budget", type=int, default=512, help="token budget Attestor packs per recall; the answerer receives all retrieved memos up to this size (e.g. 2048 to feed a larger retrieved context)")
     parser.add_argument("--pad-repeat", type=int, default=4, help="haystack size dial per memo (×16 words ≈ tokens/turn); raise to fill big windows")
     parser.add_argument("--timeout", type=float, default=120.0, help="per-call timeout (s); raise for big windows / cold loads")
     parser.add_argument("--provider", choices=["ollama", "openrouter", "claude-cli"], default="ollama", help="local Ollama, an OpenRouter API model, or Claude via the `claude` CLI (subscription, no API key)")
@@ -54,7 +58,28 @@ def main() -> None:
         provider = OllamaProvider(model=args.model, num_ctx=args.limit, timeout=args.timeout)
 
     if args.memory:
-        rows = run_memory_session(provider, turns=args.turns, cadence=args.cadence, pad_repeat=args.pad_repeat)
+        memory = None
+        if args.memory_backend == "attestor":
+            import uuid
+
+            from .attestor_memory import connect
+
+            namespace = args.attestor_namespace or f"context-clock-{uuid.uuid4().hex[:8]}"
+            memory = connect(
+                args.attestor_url,
+                namespace=namespace,
+                recall_budget=args.attestor_recall_budget,
+                timeout=args.timeout,
+            )
+            print(f"[attestor] url={args.attestor_url} namespace={namespace} recall_budget={args.attestor_recall_budget}")
+        rows = run_memory_session(
+            provider,
+            turns=args.turns,
+            cadence=args.cadence,
+            pad_repeat=args.pad_repeat,
+            memory=memory,
+            probe_max_tokens=args.probe_max_tokens,
+        )
     elif args.until_rotted:
         # pure rot stress: no compaction, probe every turn, stop on sustained 0% recall
         rows = run_session(
@@ -84,23 +109,30 @@ def main() -> None:
     if args.until_rotted:
         print(f"\nmodel={args.model}  limit={args.limit}  mode=until-rotted (no compaction, probe every turn)\n")
     elif args.memory:
-        print(f"\nmodel={args.model}  limit={args.limit}  mode=memory\n")
+        print(f"\nmodel={args.model}  limit={args.limit}  mode=memory  backend={args.memory_backend}\n")
     else:
         print(f"\nmodel={args.model}  limit={args.limit}  cadence={args.cadence}  threshold={args.threshold}  compaction={not args.no_compaction}\n")
-    print(f"{'turn':>4} {'ctx_tok':>8} {'used':>7} {'prompt':>7} {'compl':>6} {'cum_tok':>9} {'recall':>7}  event")
-    print("-" * 66)
+    print(f"{'turn':>4} {'ctx_tok':>8} {'used':>7} {'prompt':>7} {'compl':>6} {'cum_tok':>9} {'cum_$':>10} {'recall':>7}  event")
+    print("-" * 78)
     for r in rows:
         recall = "" if r.recall is None else f"{r.recall * 100:3.0f}%"
         event = "  <<< SELF-COMPACT" if r.compaction_event else ""
         print(
             f"{r.turn:>4} {r.context_tokens:>8} {r.turn_tokens:>7} {r.prompt_tokens:>7} "
-            f"{r.completion_tokens:>6} {r.cumulative_tokens:>9} {recall:>7}{event}"
+            f"{r.completion_tokens:>6} {r.cumulative_tokens:>9} {r.cumulative_cost:>10.6f} {recall:>7}{event}"
         )
+
+    # Real billed total — only when the provider reported cost (API runs); a
+    # local Ollama run is unbilled, so we don't print a misleading "$0.00".
+    total_cost = rows[-1].cumulative_cost if rows else 0.0
+    if total_cost > 0:
+        per_turn = total_cost / len(rows)
+        print(f"\nbilled total: ${total_cost:.6f} over {len(rows)} turns (${per_turn:.6f}/turn, from OpenRouter usage.cost)")
 
     out_dir = Path(args.out)
     out_dir.mkdir(parents=True, exist_ok=True)
     if args.memory:
-        mode = "memory"
+        mode = f"{args.memory_backend}_memory" if args.memory_backend != "retrieval" else "memory"
     elif args.until_rotted:
         mode = f"rot_ctx{args.limit}"
     else:
