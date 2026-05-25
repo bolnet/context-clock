@@ -148,3 +148,30 @@ would actually stress it: **128K+ windows, multiple needles, distractor facts, o
 - Harder R1 regimes above (128K / multi-needle / distractors / semantic).
 - Bedrock alternative: `us.deepseek.r1-v1:0` (us-east-1) — valid AWS creds present; pricier per token.
 - ⚠️ The OpenRouter key was shared in chat once — rotate it.
+
+## 9. Claude Haiku via subscription (`claude -p`, no API key)
+
+Run Haiku with no API key via the Claude Code subscription. `ClaudeCliProvider` shells out to
+`claude -p --model haiku --output-format json`. Same `--until-rotted` rot test, 1024 client-side
+window, `--turns 18` cap.
+
+- **Clean rot curve:** recall 100% (t1–7) → 67 (t8) → 33 (t9) → **0 (t10–12)**, rot at **turn 12**
+  — identical to DeepSeek-R1 on the same client-window. Model-independence holds for Haiku too,
+  with **no API key**. CSV: `results/haiku_rot_ctx1024.csv`.
+
+**Caveats (real, but didn't break the recall signal):**
+- **Token accounting is unreliable** here: `prompt_tokens` reads ~10–30 every turn because our
+  content is folded into the Claude Code harness *cache* (`cache_creation`), so `input_tokens`
+  under-reports. Treat the token columns as meaningless for this provider; only recall is valid.
+- **Agentic/verbose responses** (completion 194–1146 tokens, harness framing); a one-shot smoke
+  even flagged the haystack as an "adversarial prompt." But the unpredictable needle still
+  surfaced in the text when in-context, so substring-grading produced a clean curve over 50 probes.
+- Not 1:1 with the clean Ollama/OpenRouter runs (agent harness), but the rot *signal* is genuine.
+
+**Sonnet via the same path: REFUSED.** `claude -p --model sonnet` hard-fails on the NIAH haystack
+with `API Error: …appears to violate our Usage Policy… Try rephrasing` (`is_error:true`), even with
+retry/backoff (it's a deterministic policy refusal, not a transient blip). The Claude Code harness's
+safety layer flags the random-filler-plus-"vault code" prompt as a likely injection. Haiku tolerated
+it (verbose but answered); Sonnet blocks it. **Takeaway:** the subscription/`claude -p` route is
+model-dependent and unreliable for this benchmark — a clean Sonnet run needs the Anthropic API (key).
+We do not engineer around the usage-policy refusal.

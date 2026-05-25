@@ -348,13 +348,14 @@ svg.chart { width: 100%; height: auto; display: block; }
                         <span><i style="background:var(--accent3)"></i>phi4 · 14B</span>
                         <span><i style="background:var(--green)"></i>mistral · 24B</span>
                         <span><i style="background:var(--accent2)"></i>deepseek-r1 · 671B*</span>
+                        <span><i style="background:#ff7ab6"></i>claude haiku · subscription*</span>
                     </div>
                 </div>
             </div>
             <div class="col reveal center" style="flex:1;align-items:center;text-align:center;">
                 <div class="huge" data-count="16" data-suffix="">16</div>
                 <h3><strong>3B &rarr; 671B</strong> · one curve</h3>
-                <p style="text-align:center;">Four local models (3B&ndash;24B) rot identically at <strong>turn 16</strong>; <strong>DeepSeek-R1 (671B, API)</strong> rots the same 100&rarr;67&rarr;33&rarr;0. Across a <strong>~200&times;</strong> span, truncation drops the oldest tokens regardless of model — <strong class="tealtext">a bigger model doesn't help.</strong> <span style="font-size:.8em;opacity:.7">*R1 on a constrained client-side window &rarr; earlier onset (t12), same shape.</span></p>
+                <p style="text-align:center;"><strong>6 models, ~200&times; size span</strong>, across <strong>local · API · subscription</strong>, all trace 100&rarr;67&rarr;33&rarr;0. Four local (3B&ndash;24B) rot at turn 16; DeepSeek-R1 (671B, API) and Claude Haiku (subscription, <em>no API key</em>) at turn 12. Truncation drops the oldest tokens regardless of model — <strong class="tealtext">a bigger or better model doesn't help.</strong> <span style="font-size:.8em;opacity:.7">*frontier models on a constrained client-side window &rarr; same shape, earlier onset.</span></p>
             </div>
         </div>
     </div>
@@ -405,7 +406,31 @@ svg.chart { width: 100%; height: auto; display: block; }
     <div class="slide-no">08</div>
 </section>
 
-<!-- 9 — TAKEAWAYS -->
+<!-- 9 — FRONTIER + PROVIDERS -->
+<section class="slide" id="s7b">
+    <div class="slide-content">
+        <div class="kicker reveal">frontier &amp; reach</div>
+        <h2 class="reveal">Within its window, a frontier model doesn't rot — <span class="tealtext">yet</span></h2>
+        <div class="row wrap" style="align-items:stretch;">
+            <div class="col reveal statcard" style="flex:1.2;">
+                <div class="num tealtext mono" style="font-size:clamp(1.4rem,4vw,2.4rem)">20 / 20</div>
+                <h3>DeepSeek-R1 · needle-by-depth</h3>
+                <p>Found at every size (4K&ndash;64K) and depth (0&ndash;100%). Rot is about <strong>exceeding</strong> the window, not <strong>having</strong> a big one. <span style="opacity:.7">Single-needle/verbatim is the easy regime — 128K+, distractors, or multi-needle would stress it.</span></p>
+            </div>
+            <div class="col reveal" style="flex:1;">
+                <div class="grid" style="gap:.5rem;">
+                    <div class="statcard"><div class="num greentext mono">$0</div><div class="lbl">local (Ollama) — 4 models, unlimited</div></div>
+                    <div class="statcard"><div class="num mono" style="color:var(--accent2)">~$0.27</div><div class="lbl">DeepSeek-R1 via OpenRouter API</div></div>
+                    <div class="statcard"><div class="num mono" style="color:#ff7ab6">no&nbsp;key</div><div class="lbl">Claude Haiku via subscription (claude&nbsp;-p)</div></div>
+                </div>
+            </div>
+        </div>
+        <p class="reveal" style="opacity:.8">One provider-agnostic harness: local truncation, a client-side window for APIs, and a reasoning-aware probe budget.</p>
+    </div>
+    <div class="slide-no">09</div>
+</section>
+
+<!-- 10 — TAKEAWAYS -->
 <section class="slide" id="s8">
     <div class="slide-content">
         <div class="kicker reveal">what to take away</div>
@@ -417,15 +442,15 @@ svg.chart { width: 100%; height: auto; display: block; }
             <div class="statcard"><div class="num mono greentext">04</div><h3>External memory is the lever</h3><p>Retrieve-what's-needed stays flat, cheap, and never forgets.</p></div>
         </div>
     </div>
-    <div class="slide-no">09</div>
+    <div class="slide-no">10</div>
 </section>
 
-<!-- 10 — CLOSING -->
+<!-- 11 — CLOSING -->
 <section class="slide" id="s9">
     <div class="glow" style="width:42vw;height:42vw;background:var(--accent);bottom:-15%;right:-5%;"></div>
     <div class="slide-content center" style="align-items:center;text-align:center;">
         <div class="kicker reveal" style="justify-content:center;">reproduce it</div>
-        <h2 class="reveal">100% local. Ollama only. Zero API cost.</h2>
+        <h2 class="reveal">Local, API, or subscription — <span class="tealtext">one harness</span>, mostly $0.</h2>
         <div class="chart-panel reveal mono" style="text-align:left;max-width:min(92vw,640px);font-size:var(--mono);color:var(--accent);">
 <div style="color:var(--muted)"># the headline run — rot until complete</div>
 ollama pull llama3.2<br>
@@ -433,13 +458,13 @@ python -m context_clock.run --model llama3.2 \<br>
 &nbsp;&nbsp;--until-rotted --limit 1024 --turns 60<span class="cursor"></span>
         </div>
         <div class="chips reveal" style="justify-content:center;">
-            <span class="chip"><i class="dot" style="background:var(--green)"></i>57 tests green</span>
-            <span class="chip"><i class="dot" style="background:var(--accent)"></i>llama3.2 · qwen2.5:14b · phi4:14b</span>
-            <span class="chip"><i class="dot" style="background:var(--accent3)"></i>raw rot · compaction · memory</span>
+            <span class="chip"><i class="dot" style="background:var(--green)"></i>74 tests green</span>
+            <span class="chip"><i class="dot" style="background:var(--accent)"></i>6 models · 3B→671B</span>
+            <span class="chip"><i class="dot" style="background:var(--accent3)"></i>local · API · subscription</span>
         </div>
-        <p class="reveal" style="text-align:center;">The arc reproduces everywhere. Onset and cost are model-specific — but the failure is universal, and the fix is memory.</p>
+        <p class="reveal" style="text-align:center;">The arc reproduces everywhere — local or frontier. Onset and cost vary, but the failure is universal, and the fix is memory.</p>
     </div>
-    <div class="slide-no">10</div>
+    <div class="slide-no">11</div>
 </section>
 
 <nav class="nav-dots" id="dots" aria-label="slide navigation"></nav>
@@ -580,7 +605,8 @@ python -m context_clock.run --model llama3.2 \<br>
             paths.push(addLine(svg, jit(-3.3), 16, C('--green'), {}));   // mistral 24B
             // DeepSeek-R1 (671B, API): same shape, earlier onset (constrained client-side window)
             const r1 = [100, 100, 100, 100, 100, 100, 100, 67, 33, 0, 0, 0];
-            paths.push(addLine(svg, r1, 16, C('--accent2'), {}));
+            paths.push(addLine(svg, r1.map(v => Math.min(100, v + 1.5)), 16, C('--accent2'), {})); // deepseek-r1 (API)
+            paths.push(addLine(svg, r1.map(v => Math.max(0, v - 1.5)), 16, '#ff7ab6', {}));        // claude haiku (subscription)
             endDot(svg, recall16, 16, C('--red'));
         }
         charts[kind] = paths;
