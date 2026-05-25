@@ -38,7 +38,7 @@ def main() -> None:
     parser.add_argument("--memory", action="store_true", help="memory backend: retrieve relevant fact, keep context flat")
     parser.add_argument("--pad-repeat", type=int, default=4, help="haystack size dial per memo (×16 words ≈ tokens/turn); raise to fill big windows")
     parser.add_argument("--timeout", type=float, default=120.0, help="per-call timeout (s); raise for big windows / cold loads")
-    parser.add_argument("--provider", choices=["ollama", "openrouter"], default="ollama", help="local Ollama or an OpenRouter API model")
+    parser.add_argument("--provider", choices=["ollama", "openrouter", "claude-cli"], default="ollama", help="local Ollama, an OpenRouter API model, or Claude via the `claude` CLI (subscription, no API key)")
     parser.add_argument("--client-window", type=int, default=None, help="truncate each sent prompt to N tokens client-side (gives API models a num_ctx-like window)")
     parser.add_argument("--probe-max-tokens", type=int, default=16, help="answer-token budget per probe; raise (e.g. 2048) for reasoning models that think before answering")
     parser.add_argument("--out", default="results", help="directory for CSV + chart")
@@ -47,6 +47,9 @@ def main() -> None:
     if args.provider == "openrouter":
         from .openai_provider import OpenAICompatProvider
         provider = OpenAICompatProvider(model=args.model, api_key=_load_openrouter_key(), timeout=args.timeout)
+    elif args.provider == "claude-cli":
+        from .claude_cli_provider import ClaudeCliProvider
+        provider = ClaudeCliProvider(model=args.model, timeout=args.timeout)
     else:
         provider = OllamaProvider(model=args.model, num_ctx=args.limit, timeout=args.timeout)
 
