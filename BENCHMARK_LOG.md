@@ -104,10 +104,32 @@ impractical locally. Bigger models / native windows → API path (see §8).
 
 ---
 
-## 8. Pending / API path (not yet run — costs real money)
+## 8. Frontier model — DeepSeek-R1, native-window NIAH-by-depth (OpenRouter)
 
-- **DeepSeek-R1** available on Bedrock as `us.deepseek.r1-v1:0` (inference profile, us-east-1).
-  Reasoning model → needs higher `max_tokens` + answer parsing; output tokens inflate cost.
-- API models have no `num_ctx` knob → must use the **native-window** experiment, not the
-  ctx-1024 truncation test.
-- Cost (per modest run, approx): OpenRouter ~$0.30 · Bedrock ~$1–3. Caching reduces both.
+Provider: OpenRouter (`deepseek/deepseek-r1`), via `OpenAICompatProvider`. API models
+have no `num_ctx` knob, so this is the **intra-window** test (needle at a fractional depth
+in a haystack of size N), not truncation rot. R1 returns the answer in `message.content`
+after a separate `reasoning` field — the provider reads `content` correctly.
+
+Sweep: sizes {4K, 16K, 32K, 64K} × depths {0, 25, 50, 75, 100%} = 20 probes.
+
+| | 0% | 25% | 50% | 75% | 100% |
+|---|---|---|---|---|---|
+| 4K | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 16K | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 32K | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 64K | ✓ | ✓ | ✓ | ✓ | ✓ |
+
+**Recall 20/20.** No intra-window degradation up to 64K at any depth. Cost: 484,237 prompt
++ 3,605 completion tokens ≈ **$0.27**; 239s. CSV: `results/niah_deepseek_r1.csv`.
+
+**Caveat:** single-needle, verbatim, low-distractor NIAH is the *easy* regime — frontier models
+pass it. This is "R1 handles basic retrieval to 64K," not "R1 never rots." Harder regimes that
+would actually stress it: **128K+ windows, multiple needles, distractor facts, or semantic
+(non-verbatim) queries.** Smoke test (1 probe, ctx ~200): found needle in `content`, finish=stop,
+~$0.0005.
+
+### Pending (not yet run)
+- Harder R1 regimes above (128K / multi-needle / distractors / semantic).
+- Bedrock alternative: `us.deepseek.r1-v1:0` (us-east-1) — valid AWS creds present; pricier per token.
+- ⚠️ The OpenRouter key was shared in chat once — rotate it.
