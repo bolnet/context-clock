@@ -12,6 +12,7 @@ tested; ``run_session`` is exercised by a real run.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Protocol
 
 from .compaction import select_turns_to_compact, should_compact
 from .compactor import compact
@@ -43,6 +44,8 @@ class TurnRow:
     turn_tokens: int = 0       # tokens spent this turn (prompt + completion + any compaction)
     prompt_tokens: int = 0     # prompt tokens evaluated this turn (sum across calls)
     completion_tokens: int = 0  # completion tokens generated this turn
+    turn_cost: float = 0.0      # real billed USD this turn (0.0 on unbilled/local runs)
+    cumulative_cost: float = 0.0  # real billed USD spent so far
 
 
 def make_fact(n: int, pad_repeat: int = 4) -> Fact:
@@ -156,6 +159,7 @@ def run_session(
         prev_total = meter.cumulative_total
         prev_prompt = meter.cumulative_prompt
         prev_completion = meter.cumulative_completion
+        prev_cost = meter.cumulative_cost
 
         recall: float | None = None
         if due_probe(turn, cadence):
@@ -164,13 +168,13 @@ def run_session(
             for idx in targets:
                 question = f"What is the vault code in Memo {facts[idx].index}? Reply with only the code."
                 response = _send([{"role": "user", "content": question}], probe_max_tokens)
-                meter.record(response.prompt_tokens, response.completion_tokens)
+                meter.record(response.prompt_tokens, response.completion_tokens, response.cost)
                 if grade(facts[idx].answer, response.text):
                     correct += 1
             recall = correct / len(targets) if targets else None
         else:
             response = _send([{"role": "user", "content": "Acknowledge in one word."}], 8)
-            meter.record(response.prompt_tokens, response.completion_tokens)
+            meter.record(response.prompt_tokens, response.completion_tokens, response.cost)
 
         compaction_event = False
         if compaction_enabled and should_compact(meter.current_context, limit, threshold):
@@ -179,6 +183,9 @@ def run_session(
             if fold_idx:
                 folded = [transcript[1 + i] for i in fold_idx]
                 summary, cost = compact(provider, folded)
+                # Token overhead only: the memory-backend approach does no
+                # compaction, and compaction runs here are local (unbilled), so
+                # there's no billed $ to attribute to this path.
                 meter.cumulative_total += cost
                 # rebuild transcript: preamble + summary + un-folded fact messages
                 survivors = [transcript[1 + i] for i in range(len(fact_costs)) if i not in set(fold_idx)]
@@ -197,6 +204,8 @@ def run_session(
                 turn_tokens=meter.cumulative_total - prev_total,
                 prompt_tokens=meter.cumulative_prompt - prev_prompt,
                 completion_tokens=meter.cumulative_completion - prev_completion,
+                turn_cost=meter.cumulative_cost - prev_cost,
+                cumulative_cost=meter.cumulative_cost,
             )
         )
 
@@ -206,6 +215,14 @@ def run_session(
     return rows
 
 
+class _MemoryBackend(Protocol):
+    """The store/retrieve shape every memory backend implements."""
+
+    def add(self, fact: Fact) -> None: ...
+
+    def recall(self, index: int) -> Fact | None: ...
+
+
 def run_memory_session(
     provider: OllamaProvider,
     *,
@@ -213,16 +230,29 @@ def run_memory_session(
     cadence: int = 3,
     probe_k: int = 3,
     pad_repeat: int = 4,
+    memory: _MemoryBackend | None = None,
+    probe_max_tokens: int = 16,
 ) -> list[TurnRow]:
     """Same workload, but retrieve only the relevant fact per probe.
 
     Facts are stored, not stacked into the prompt, so the live context stays
     flat: probes send just ``[preamble, retrieved fact, question]``. No window
     pressure → no compaction → no decay. This is the payoff contrast.
-    """
-    from .memory import RetrievalMemory
 
-    memory = RetrievalMemory()
+    ``memory`` is the injected backend (defaults to ``RetrievalMemory``, the
+    ideal-retrieval reference, so existing runs are unchanged). A real backend
+    (e.g. ``AttestorMemory``) plugs in here to measure honest semantic recall.
+    When a backend returns ``None`` for a probe, that probe is graded as a miss
+    — no model call is made — so an unrecallable needle shows up as decayed
+    recall rather than a crash.
+
+    ``probe_max_tokens`` caps the answer budget per probe; reasoning models
+    need more than the 16-token default.
+    """
+    if memory is None:
+        from .memory import RetrievalMemory
+
+        memory = RetrievalMemory()
     meter = TokenMeter()
     facts: list[Fact] = []
     preamble = {"role": "system", "content": "You are a memo keeper. Answer tersely."}
@@ -236,6 +266,7 @@ def run_memory_session(
         prev_total = meter.cumulative_total
         prev_prompt = meter.cumulative_prompt
         prev_completion = meter.cumulative_completion
+        prev_cost = meter.cumulative_cost
 
         recall: float | None = None
         if due_probe(turn, cadence):
@@ -243,10 +274,17 @@ def run_memory_session(
             correct = 0
             for idx in targets:
                 hit = memory.recall(facts[idx].index)
+                if hit is None:
+                    # Honest miss: the backend surfaced nothing for this memo.
+                    # Count it as incorrect — a decayed needle, not a crash.
+                    continue
                 question = f"What is the vault code in Memo {facts[idx].index}? Reply with only the code."
                 context = [preamble, {"role": "system", "content": hit.statement}]
-                response = provider.complete(context + [{"role": "user", "content": question}], max_tokens=16)
-                meter.record(response.prompt_tokens, response.completion_tokens)
+                response = provider.complete(
+                    context + [{"role": "user", "content": question}],
+                    max_tokens=probe_max_tokens,
+                )
+                meter.record(response.prompt_tokens, response.completion_tokens, response.cost)
                 if grade(facts[idx].answer, response.text):
                     correct += 1
             recall = correct / len(targets) if targets else None
@@ -261,6 +299,8 @@ def run_memory_session(
                 turn_tokens=meter.cumulative_total - prev_total,
                 prompt_tokens=meter.cumulative_prompt - prev_prompt,
                 completion_tokens=meter.cumulative_completion - prev_completion,
+                turn_cost=meter.cumulative_cost - prev_cost,
+                cumulative_cost=meter.cumulative_cost,
             )
         )
 

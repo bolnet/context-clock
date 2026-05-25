@@ -3,18 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>context-clock — measuring context rot</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<title>context-clock — deck</title>
+<!--
+  context-clock — slide-deck presentation variant.
+  Same content / data / motion as context-clock-report.html, but presented as a
+  discrete deck: exactly one slide shown at a time, advanced by key / nav / dots.
+  Single self-contained file: inline CSS + JS, zero runtime dependencies.
+  ONE MODELS array (see <script>) is the single source of truth for all data.
+-->
 <style>
-/* ===========================================
-   VIEWPORT FITTING: MANDATORY BASE
-   =========================================== */
+/* =====================================================================
+   BASE + VIEWPORT FITTING (one slide visible, exactly one viewport)
+   ===================================================================== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html, body { height: 100%; overflow-x: hidden; }
-html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+html, body { height: 100%; overflow: hidden; }
 
 :root {
     --bg:      #070b12;
@@ -23,39 +25,48 @@ html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
     --fg:      #e6edf3;
     --muted:   #8b97a8;
     --line:    rgba(255,255,255,0.07);
-    --accent:  #2dd4bf;   /* teal — primary data */
-    --accent2: #f0883e;   /* orange — cost / warning */
-    --accent3: #a371f7;   /* violet — third model */
-    --green:   #3fb950;   /* 100% recall */
-    --red:     #f85149;   /* 0% recall / rot */
+    --accent:  #2dd4bf;   /* teal  — recall / primary */
+    --accent2: #f0883e;   /* orange — tokens / caution */
+    --accent3: #a371f7;   /* violet — third series */
+    --green:   #3fb950;   /* 100% */
+    --amber:   #ffd166;   /* 67% */
+    --red:     #f85149;   /* 0% / rot */
     --blue:    #58a6ff;
+    --pink:    #ff7ab6;
 
-    --title-size: clamp(1.6rem, 5.2vw, 4.2rem);
+    --title-size: clamp(1.7rem, 5.4vw, 4.4rem);
     --h2-size:    clamp(1.25rem, 3.4vw, 2.4rem);
-    --h3-size:    clamp(1rem, 2.3vw, 1.6rem);
-    --body-size:  clamp(0.8rem, 1.45vw, 1.1rem);
+    --h3-size:    clamp(1rem, 2.3vw, 1.55rem);
+    --body-size:  clamp(0.8rem, 1.45vw, 1.08rem);
     --small-size: clamp(0.64rem, 1vw, 0.85rem);
     --mono:       clamp(0.62rem, 1vw, 0.85rem);
 
-    --slide-padding: clamp(1.1rem, 4.5vw, 4.5rem);
-    --content-gap: clamp(0.6rem, 2vw, 1.8rem);
-    --element-gap: clamp(0.3rem, 1vw, 1rem);
+    --slide-padding: clamp(1.1rem, 4.5vw, 4.4rem);
+    --content-gap: clamp(0.6rem, 2vw, 1.6rem);
 }
 
 body {
     background: var(--bg);
     color: var(--fg);
-    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-family: 'Space Grotesk', system-ui, -apple-system, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
 }
 
+/* deck container — stack all slides; only the active one is shown */
+.deck { position: relative; width: 100vw; height: 100dvh; }
 .slide {
-    width: 100vw; height: 100vh; height: 100dvh;
-    overflow: hidden; scroll-snap-align: start;
-    display: flex; flex-direction: column; position: relative;
+    position: absolute; inset: 0;
+    width: 100vw; height: 100vh; height: 100dvh; overflow: hidden;
+    display: flex; flex-direction: column;
     background: radial-gradient(120% 120% at 80% 0%, var(--bg2) 0%, var(--bg) 55%);
+    opacity: 0; visibility: hidden; pointer-events: none;
+    transform: translateY(18px) scale(.995);
+    transition: opacity .5s cubic-bezier(.2,.7,.2,1), transform .5s cubic-bezier(.2,.7,.2,1);
 }
-/* subtle grid texture */
+.slide.active {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transform: none; z-index: 2;
+}
 .slide::before {
     content: ""; position: absolute; inset: 0; pointer-events: none;
     background-image:
@@ -63,8 +74,7 @@ body {
         linear-gradient(90deg, var(--line) 1px, transparent 1px);
     background-size: clamp(28px,4vw,56px) clamp(28px,4vw,56px);
     mask-image: radial-gradient(110% 80% at 50% 40%, #000 35%, transparent 78%);
-    opacity: 0.5;
-    animation: griddrift 7s linear infinite;          /* continuous grid drift */
+    opacity: 0.5; animation: griddrift 7s linear infinite;
 }
 .slide-content {
     flex: 1; display: flex; flex-direction: column; justify-content: center;
@@ -72,8 +82,11 @@ body {
     position: relative; z-index: 1; gap: var(--content-gap);
 }
 
+/* =====================================================================
+   TYPOGRAPHY + SMALL COMPONENTS
+   ===================================================================== */
 .kicker {
-    font-family: 'JetBrains Mono', monospace; font-size: var(--small-size);
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: var(--small-size);
     letter-spacing: 0.22em; text-transform: uppercase; color: var(--accent);
     display: flex; align-items: center; gap: 0.6em;
 }
@@ -82,36 +95,35 @@ body {
 h1 { font-size: var(--title-size); font-weight: 700; line-height: 1.02; letter-spacing: -0.02em; }
 h2 { font-size: var(--h2-size); font-weight: 700; line-height: 1.08; letter-spacing: -0.01em; }
 h3 { font-size: var(--h3-size); font-weight: 500; }
-p  { font-size: var(--body-size); color: var(--muted); line-height: 1.5; max-width: 60ch; }
+p  { font-size: var(--body-size); color: var(--muted); line-height: 1.5; max-width: 62ch; }
 strong { color: var(--fg); font-weight: 700; }
-.mono { font-family: 'JetBrains Mono', monospace; }
+.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
 .tealtext { color: var(--accent); }
 .redtext { color: var(--red); }
 .greentext { color: var(--green); }
+.ambertext { color: var(--amber); }
 
-/* reveal animation */
-.reveal { opacity: 0; transform: translateY(22px); transition: opacity .7s cubic-bezier(.2,.7,.2,1), transform .7s cubic-bezier(.2,.7,.2,1); }
+/* reveal-on-active — keyed to the active slide */
+.reveal { opacity: 0; transform: translateY(22px);
+    transition: opacity .6s cubic-bezier(.2,.7,.2,1), transform .6s cubic-bezier(.2,.7,.2,1); }
 .slide.active .reveal { opacity: 1; transform: none; }
 .slide.active .reveal:nth-child(2){ transition-delay:.08s } .slide.active .reveal:nth-child(3){ transition-delay:.16s }
 .slide.active .reveal:nth-child(4){ transition-delay:.24s } .slide.active .reveal:nth-child(5){ transition-delay:.32s }
 .slide.active .reveal:nth-child(6){ transition-delay:.40s }
 
-/* chips */
 .chips { display: flex; flex-wrap: wrap; gap: clamp(.4rem,1vw,.7rem); }
 .chip {
-    font-family: 'JetBrains Mono', monospace; font-size: var(--small-size);
+    font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: var(--small-size);
     padding: .35em .8em; border: 1px solid var(--line); border-radius: 999px;
     color: var(--muted); background: rgba(255,255,255,0.02); display: inline-flex; align-items: center; gap: .5em;
 }
 .dot { width: .6em; height: .6em; border-radius: 50%; display: inline-block; }
 
-/* layout helpers */
 .row { display: flex; gap: var(--content-gap); align-items: center; }
 .row.wrap { flex-wrap: wrap; }
 .col { flex: 1; min-width: 0; }
 .center { text-align: center; align-items: center; }
 
-/* stat grid */
 .grid { display: grid; gap: clamp(.5rem,1.4vw,1rem); }
 .g2 { grid-template-columns: repeat(2, 1fr); }
 .g3 { grid-template-columns: repeat(3, 1fr); }
@@ -120,187 +132,238 @@ strong { color: var(--fg); font-weight: 700; }
     background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
     padding: clamp(.7rem,1.6vw,1.3rem); display: flex; flex-direction: column; gap: .25rem;
 }
-.statcard .num { font-family:'JetBrains Mono',monospace; font-weight:700; font-size: clamp(1.1rem,2.6vw,2rem); line-height:1; }
-.statcard .lbl { font-size: var(--small-size); color: var(--muted); }
+.statcard .num { font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:700; font-size: clamp(1.1rem,2.6vw,2rem); line-height:1; }
+.statcard .lbl { font-size: var(--small-size); color: var(--muted); line-height: 1.4; }
+.statcard h3 { margin-top:.1rem; }
 
-/* chart panel */
 .chart-panel {
     background: linear-gradient(180deg, var(--panel), #0a121c);
     border: 1px solid var(--line); border-radius: 16px;
-    padding: clamp(.7rem,1.8vw,1.4rem); position: relative;
+    padding: clamp(.7rem,1.8vw,1.4rem); position: relative; overflow: hidden;
 }
 svg.chart { width: 100%; height: auto; display: block; }
-.legend { display:flex; flex-wrap:wrap; gap: clamp(.6rem,1.6vw,1.3rem); margin-top:.4rem; }
-.legend span { font-family:'JetBrains Mono',monospace; font-size: var(--small-size); color: var(--muted); display:inline-flex; align-items:center; gap:.45em; }
-.legend i { width: 1.4em; height: 3px; border-radius: 2px; display:inline-block; }
+.legend { display:flex; flex-wrap:wrap; gap: clamp(.5rem,1.5vw,1.2rem); margin-top:.4rem; }
+.legend span { font-family:'JetBrains Mono',ui-monospace,monospace; font-size: var(--small-size); color: var(--muted); display:inline-flex; align-items:center; gap:.45em; }
+.legend i { width: 1.4em; height: 3px; border-radius: 2px; display:inline-block; flex:none; }
 
 .chart-line { fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round;
     filter: drop-shadow(0 0 6px currentColor); }
 .chart-area { opacity: .12; }
 .gridline { stroke: var(--line); stroke-width: 1; }
-.axislabel { font-family:'JetBrains Mono',monospace; fill: var(--muted); font-size: 11px; }
+.axislabel { font-family:'JetBrains Mono',ui-monospace,monospace; fill: var(--muted); font-size: 11px; }
 .pt { opacity: 0; transition: opacity .3s ease; }
 .slide.active .pt { opacity: 1; transition-delay: 1s; }
 
-/* horizontal bars */
 .bar-row { display:flex; align-items:center; gap: clamp(.5rem,1.4vw,1rem); margin: clamp(.3rem,.9vw,.6rem) 0; }
-.bar-row .blab { font-family:'JetBrains Mono',monospace; font-size: var(--small-size); width: clamp(54px,7vw,90px); color: var(--muted); flex:none; }
+.bar-row .blab { font-family:'JetBrains Mono',ui-monospace,monospace; font-size: var(--small-size); width: clamp(54px,7vw,92px); color: var(--muted); flex:none; }
 .bar-track { flex:1; height: clamp(20px,3.2vh,34px); background: rgba(255,255,255,.04); border-radius: 8px; overflow:hidden; }
-.bar-fill { height:100%; width:0; border-radius:8px; transition: width 1.1s cubic-bezier(.2,.7,.2,1); display:flex; align-items:center; justify-content:flex-end; padding-right:.6em; }
-.bar-fill .bval { font-family:'JetBrains Mono',monospace; font-size: var(--small-size); font-weight:700; color:#06121a; opacity:0; transition: opacity .4s ease .9s; white-space:nowrap; }
+.bar-fill { height:100%; width:0; border-radius:8px; transition: width 1.2s cubic-bezier(.34,1.56,.4,1); display:flex; align-items:center; justify-content:flex-end; padding-right:.6em; }
+.bar-fill .bval { font-family:'JetBrains Mono',ui-monospace,monospace; font-size: var(--small-size); font-weight:700; color:#06121a; opacity:0; transition: opacity .4s ease .9s; white-space:nowrap; }
 .slide.active .bar-fill .bval { opacity:1; }
 
-/* compare columns */
 .cmp { display:grid; grid-template-columns:1fr 1fr; gap: clamp(.6rem,2vw,1.6rem); }
 .cmp .side { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding: clamp(.7rem,1.8vw,1.3rem); }
-.cmp .side h4 { font-family:'JetBrains Mono',monospace; font-size:var(--small-size); letter-spacing:.12em; text-transform:uppercase; margin-bottom:.6rem; }
+.cmp .side h4 { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:var(--small-size); letter-spacing:.12em; text-transform:uppercase; margin-bottom:.6rem; }
 .cmp .metric { display:flex; justify-content:space-between; align-items:baseline; padding:.35rem 0; border-top:1px solid var(--line); }
 .cmp .metric:first-of-type{ border-top:none; }
-.cmp .metric b { font-family:'JetBrains Mono',monospace; font-size: clamp(.85rem,1.8vw,1.25rem); }
+.cmp .metric b { font-family:'JetBrains Mono',ui-monospace,monospace; font-size: clamp(.85rem,1.8vw,1.25rem); }
 .cmp .metric small { color:var(--muted); font-size:var(--small-size); }
 
-/* bullet list */
 .blist { list-style:none; display:flex; flex-direction:column; gap: clamp(.45rem,1.4vh,1rem); }
 .blist li { font-size: var(--body-size); line-height:1.4; padding-left: 1.7em; position:relative; color: var(--fg); max-width: 64ch; }
-.blist li::before { content:"›"; position:absolute; left:0; color:var(--accent); font-family:'JetBrains Mono',monospace; font-weight:700; }
+.blist li::before { content:"\203A"; position:absolute; left:0; color:var(--accent); font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:700; }
 .blist li span { color: var(--muted); }
 
-/* big number / headline */
-.huge { font-family:'JetBrains Mono',monospace; font-weight:700; font-size: clamp(2.6rem,11vw,8rem); line-height:.9; letter-spacing:-.03em;
+.huge { font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:700; font-size: clamp(2.6rem,11vw,8rem); line-height:.9; letter-spacing:-.03em;
     background: linear-gradient(180deg,#fff, var(--accent)); -webkit-background-clip:text; background-clip:text; color:transparent;
     animation: hugepulse 3s ease-in-out infinite; }
 
-/* progress + nav */
-.progress { position:fixed; top:0; left:0; height:3px; background: linear-gradient(90deg,var(--accent),var(--blue)); width:0; z-index:50; transition: width .3s ease; box-shadow:0 0 10px var(--accent); }
+/* deck chrome: progress bar, nav dots, slide number, prev/next arrows */
+.progress { position:fixed; top:0; left:0; height:3px; background: linear-gradient(90deg,var(--accent),var(--blue)); width:0; z-index:50; transition: width .4s ease; box-shadow:0 0 10px var(--accent); }
 .nav-dots { position:fixed; right: clamp(10px,1.6vw,22px); top:50%; transform:translateY(-50%); display:flex; flex-direction:column; gap:.6rem; z-index:50; }
 .nav-dots button { width:9px; height:9px; border-radius:50%; border:1px solid var(--muted); background:transparent; cursor:pointer; padding:0; transition: all .25s ease; }
 .nav-dots button.on { background:var(--accent); border-color:var(--accent); box-shadow:0 0 8px var(--accent); transform:scale(1.25); }
-.slide-no { position:absolute; bottom: clamp(.7rem,2vh,1.4rem); right: var(--slide-padding); font-family:'JetBrains Mono',monospace; font-size:var(--small-size); color:var(--muted); z-index:2; }
-.kbd-hint { position:fixed; bottom:10px; left:50%; transform:translateX(-50%); font-family:'JetBrains Mono',monospace; font-size:.7rem; color:var(--muted); opacity:.6; z-index:50; }
+.slide-no { position:absolute; bottom: clamp(.7rem,2vh,1.4rem); right: var(--slide-padding); font-family:'JetBrains Mono',ui-monospace,monospace; font-size:var(--small-size); color:var(--muted); z-index:2; }
+.arrows { position:fixed; bottom: clamp(.7rem,2.4vh,1.6rem); left:50%; transform:translateX(-50%); display:flex; gap:.6rem; z-index:50; align-items:center; }
+.arrows button {
+    font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.8rem; color:var(--muted);
+    background:rgba(255,255,255,.03); border:1px solid var(--line); border-radius:999px;
+    width:34px; height:30px; cursor:pointer; transition:all .2s ease;
+}
+.arrows button:hover { color:var(--accent); border-color:rgba(45,212,191,.4); box-shadow:0 0 10px rgba(45,212,191,.2); }
+.arrows .pageno { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.74rem; color:var(--muted); min-width:5ch; text-align:center; }
 
 .glow { position:absolute; border-radius:50%; filter: blur(70px); opacity:.18; pointer-events:none;
     animation: floaty 22s ease-in-out infinite alternate, glowpulse 7s ease-in-out infinite; }
 
-/* ===== continuous motion-graphics keyframes ===== */
+/* =====================================================================
+   CONTINUOUS MOTION KEYFRAMES
+   ===================================================================== */
 @keyframes griddrift { from { background-position: 0 0, 0 0; } to { background-position: 56px 56px, 56px 56px; } }
-@keyframes floaty {
-    0%   { transform: translate(0, 0) scale(1); }
-    50%  { transform: translate(3vw, -2.4vw) scale(1.08); }
-    100% { transform: translate(-2.2vw, 2vw) scale(.96); }
-}
-@keyframes glowpulse { 0%,100% { opacity:.12; } 50% { opacity:.30; } }
-@keyframes hugepulse { 0%,100% { filter: drop-shadow(0 0 2px rgba(45,212,191,.2)); transform: scale(1); }
-                       50%     { filter: drop-shadow(0 0 26px rgba(45,212,191,.65)); transform: scale(1.04); } }
-@keyframes scan { 0% { transform: translateY(-110%); } 100% { transform: translateY(260%); } }
-@keyframes ringpulse { 0% { transform: scale(.55); opacity:.55; } 100% { transform: scale(1.7); opacity:0; } }
-@keyframes dotpulse { 0%,100% { transform: scale(1); opacity:.7; } 50% { transform: scale(1.5); opacity:1; } }
-@keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0; } }
-@keyframes kickerpulse { 0%,100% { box-shadow:0 0 0 transparent; } 50% { box-shadow:0 0 12px var(--accent); } }
+@keyframes floaty { 0%{transform:translate(0,0) scale(1);} 50%{transform:translate(3vw,-2.4vw) scale(1.08);} 100%{transform:translate(-2.2vw,2vw) scale(.96);} }
+@keyframes glowpulse { 0%,100%{opacity:.12;} 50%{opacity:.30;} }
+@keyframes hugepulse { 0%,100%{filter:drop-shadow(0 0 2px rgba(45,212,191,.2)); transform:scale(1);} 50%{filter:drop-shadow(0 0 26px rgba(45,212,191,.65)); transform:scale(1.04);} }
+@keyframes scan { 0%{transform:translateY(-110%);} 100%{transform:translateY(260%);} }
+@keyframes ringpulse { 0%{transform:scale(.55); opacity:.55;} 100%{transform:scale(1.7); opacity:0;} }
+@keyframes dotpulse { 0%,100%{transform:scale(1); opacity:.7;} 50%{transform:scale(1.5); opacity:1;} }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0;} }
 
-/* scanning highlight sweeping every chart (benchmark "radar" feel) */
-.chart-panel { overflow: hidden; }
 .chart-panel::after {
     content:""; position:absolute; left:0; top:0; width:100%; height:38%;
     background: linear-gradient(180deg, transparent, rgba(45,212,191,.10), transparent);
     animation: scan 5s ease-in-out infinite; pointer-events:none; z-index:0;
 }
 .chart-panel > * { position: relative; z-index: 1; }
-
-/* pulsing end-of-curve markers once the slide is active */
 .slide.active .pt { animation: dotpulse 1.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
 
-/* animated concentric rings behind the title */
 .rings { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:0; }
 .rings span { position:absolute; width:34vw; height:34vw; max-width:520px; max-height:520px;
     border:1px solid var(--accent); border-radius:50%; opacity:0; animation: ringpulse 4.5s ease-out infinite; }
 .rings span:nth-child(2){ animation-delay:1.5s; border-color:var(--accent3); }
 .rings span:nth-child(3){ animation-delay:3s; border-color:var(--blue); }
+.cursor::after { content:"\258B"; color:var(--accent); animation: blink 1.1s step-end infinite; margin-left:.1em; }
 
-/* blinking terminal cursor */
-.cursor::after { content:"▋"; color:var(--accent); animation: blink 1.1s step-end infinite; margin-left:.1em; }
+/* =====================================================================
+   PLAYHEAD HUD + REPLAY + SCRUBBER
+   ===================================================================== */
+.hud { display:flex; align-items:center; gap: clamp(.6rem,1.6vw,1.2rem); margin-bottom:.5rem; flex-wrap:wrap; }
+.hud.hud-min { justify-content:flex-end; margin-bottom:.2rem; }
+.hud-stat { display:flex; flex-direction:column; line-height:1; }
+.hud-stat b {
+    font-family:'JetBrains Mono',ui-monospace,monospace; font-weight:700;
+    font-size: clamp(.95rem,2vw,1.45rem); color: var(--fg);
+    font-variant-numeric: tabular-nums; transition: color .25s ease;
+}
+.hud-stat small { font-size: clamp(.55rem,.85vw,.72rem); color: var(--muted); letter-spacing:.08em; text-transform:uppercase; margin-top:.18em; }
+.replay {
+    margin-left:auto; font-family:'JetBrains Mono',ui-monospace,monospace; font-size: var(--small-size);
+    color: var(--accent); background: rgba(45,212,191,.08);
+    border:1px solid rgba(45,212,191,.35); border-radius:999px;
+    padding:.32em .9em; cursor:pointer; transition: all .2s ease; white-space:nowrap;
+}
+.replay:hover { background: rgba(45,212,191,.18); box-shadow:0 0 12px rgba(45,212,191,.35); transform: translateY(-1px); }
+.replay:active { transform: translateY(0) scale(.97); }
+.replay:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.scrub {
+    -webkit-appearance:none; appearance:none; width:100%; height:4px; margin:.55rem 0 .15rem;
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent) var(--fill,0%), rgba(255,255,255,.1) var(--fill,0%));
+    border-radius:999px; cursor:pointer;
+}
+.scrub::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:13px; height:13px; border-radius:50%;
+    background:var(--fg); border:2px solid var(--accent); box-shadow:0 0 8px var(--accent); cursor:grab; }
+.scrub::-moz-range-thumb { width:13px; height:13px; border-radius:50%; background:var(--fg);
+    border:2px solid var(--accent); box-shadow:0 0 8px var(--accent); cursor:grab; }
+.scrub:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
 
-/* live "recording" pulse dot on the kicker accents */
-.kicker.live::before { animation: kickerpulse 2s ease-in-out infinite; }
+.playhead { transition: none; }
+.playhead-ring { opacity:.5; }
+.rotlabel { font-family:'JetBrains Mono',ui-monospace,monospace; font-size:10px; fill: var(--muted); opacity:0; transition: opacity .4s ease; }
+.rotlabel.on { opacity:.95; }
+.dissolve { pointer-events:none; }
+.dissolve circle { animation: dissolveOut .9s ease-out forwards; }
+@keyframes dissolveOut { 0%{opacity:.9;} 100%{opacity:0; transform:translateY(10px);} }
 
 @media (max-height:700px){ :root{ --slide-padding:clamp(.8rem,3vw,2rem); --content-gap:clamp(.45rem,1.5vw,1rem);} }
-@media (max-height:600px){ .nav-dots,.kbd-hint{ display:none; } }
+@media (max-height:600px){ .nav-dots{ display:none; } }
 @media (max-width:680px){ .g4{grid-template-columns:repeat(2,1fr);} .g3{grid-template-columns:1fr;} .cmp{grid-template-columns:1fr;} .row{flex-direction:column; align-items:stretch;} }
-@media (prefers-reduced-motion: reduce){ *,*::before,*::after{ animation-duration:.01ms!important; transition-duration:.2s!important;} html{scroll-behavior:auto;} }
+
+@media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{ animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.2s!important;}
+}
 </style>
 </head>
 <body>
-<div class="progress" id="progress"></div>
+<div class="progress" id="progress" aria-hidden="true"></div>
 
-<!-- 1 — TITLE -->
-<section class="slide" id="s0">
+<main class="deck" id="deck">
+
+<!-- ============ SLIDE 1 — TITLE ============ -->
+<section class="slide" id="s0" aria-label="Title">
     <div class="glow" style="width:40vw;height:40vw;background:var(--accent);top:-10%;right:-5%;"></div>
     <div class="glow" style="width:30vw;height:30vw;background:var(--accent3);bottom:-10%;left:-5%;"></div>
     <div class="rings" aria-hidden="true"><span></span><span></span><span></span></div>
     <div class="slide-content center" style="align-items:center;text-align:center;">
-        <div class="kicker reveal" style="justify-content:center;">local · reproducible · ollama-only</div>
+        <div class="kicker reveal" style="justify-content:center;">a local benchmark for context rot</div>
         <h1 class="reveal">context&#8209;clock</h1>
-        <h3 class="reveal" style="color:var(--muted);max-width:24ch;">Measuring <span class="tealtext">context rot</span> in long LLM sessions — and what actually fixes it</h3>
+        <h3 class="reveal" style="color:var(--muted);max-width:30ch;">Measuring <span class="tealtext">context rot</span> &mdash; how a long session forgets, and why every model forgets the same way</h3>
         <div class="chips reveal" style="justify-content:center;margin-top:.6rem;">
-            <span class="chip"><i class="dot" style="background:var(--green)"></i>57 tests green</span>
-            <span class="chip"><i class="dot" style="background:var(--accent)"></i>3 models benchmarked</span>
-            <span class="chip"><i class="dot" style="background:var(--accent2)"></i>$0 API cost</span>
+            <span class="chip"><i class="dot" style="background:var(--accent)"></i>7 models benchmarked</span>
+            <span class="chip"><i class="dot" style="background:var(--green)"></i>74 tests passing</span>
+            <span class="chip"><i class="dot" style="background:var(--accent2)"></i>~$0.27 total cost</span>
         </div>
     </div>
     <div class="slide-no">01</div>
 </section>
 
-<!-- 2 — THE QUESTION -->
-<section class="slide" id="s1">
+<!-- ============ SLIDE 2 — THE SETUP ============ -->
+<section class="slide" id="s1" aria-label="The setup">
     <div class="slide-content">
-        <div class="kicker reveal">the question</div>
-        <h2 class="reveal">A session runs long. The context window is finite.<br><span class="tealtext">What breaks — and does a bigger/better model save you?</span></h2>
+        <div class="kicker reveal">the setup</div>
+        <h2 class="reveal">One long session. No compaction.<br><span class="tealtext">Plant a needle, then probe for it every turn.</span></h2>
         <div class="grid g4 reveal" style="margin-top:.5rem;">
-            <div class="statcard"><div class="num tealtext">①</div><div class="lbl">Context <strong>fills</strong> toward the window limit</div></div>
-            <div class="statcard"><div class="num" style="color:var(--accent2)">②</div><div class="lbl">Recall of old facts <strong>decays</strong></div></div>
-            <div class="statcard"><div class="num" style="color:var(--blue)">③</div><div class="lbl">Tokens <strong>exhaust</strong> — cost climbs</div></div>
-            <div class="statcard"><div class="num" style="color:var(--accent3)">④</div><div class="lbl">The agent is forced to <strong>compact</strong></div></div>
+            <div class="statcard"><div class="num tealtext">&#9312;</div><div class="lbl">Run a session that <strong>never compacts</strong> &mdash; the transcript just keeps growing.</div></div>
+            <div class="statcard"><div class="num" style="color:var(--accent2)">&#9313;</div><div class="lbl">Plant a <strong>needle</strong> early: a 6-char code like <span class="mono">k44cb6</span> buried in a memo.</div></div>
+            <div class="statcard"><div class="num" style="color:var(--blue)">&#9314;</div><div class="lbl">Each turn, <strong>probe</strong> for the planted code and grade by exact match &mdash; no LLM judge.</div></div>
+            <div class="statcard"><div class="num" style="color:var(--accent3)">&#9315;</div><div class="lbl">The needle is <strong>random per memo</strong>, so recall can&rsquo;t be faked by pattern-inference.</div></div>
         </div>
-        <p class="reveal">context-clock drives all four on purpose, on a local model, and measures them per turn.</p>
+        <p class="reveal">As the transcript outgrows the context budget, the oldest tokens fall away and the planted code becomes unrecallable. That collapse is <strong>context rot</strong> &mdash; and context-clock measures it per turn.</p>
     </div>
     <div class="slide-no">02</div>
 </section>
 
-<!-- 3 — METHOD -->
-<section class="slide" id="s2">
-    <div class="slide-content">
-        <div class="kicker reveal">how it works</div>
-        <h2 class="reveal">The benchmark loop</h2>
-        <div class="row wrap reveal" style="margin-top:.4rem;">
-            <div class="col statcard"><div class="num mono tealtext">inject</div><div class="lbl">Each turn adds a sizeable <strong>NIAH document</strong> — a varied haystack with one needle: <span class="mono">"the vault code is k44cb6"</span></div></div>
-            <div class="col statcard"><div class="num mono" style="color:var(--accent2)">probe</div><div class="lbl">Every turn, ask for the <strong>oldest</strong> codes. Grade by exact match — no LLM judge.</div></div>
-            <div class="col statcard"><div class="num mono" style="color:var(--accent3)">measure</div><div class="lbl">Record recall, live context, tokens used &amp; cumulative — <strong>per turn</strong>.</div></div>
-        </div>
-        <ul class="blist reveal" style="margin-top:.3rem;">
-            <li>The needle is <strong>deterministic per memo but unpredictable</strong> (<span class="mono">k44cb6</span>, not <span class="mono">k007</span>) — so a model must <strong>recall</strong> it, not <span>infer it</span>.</li>
-            <li>No external memory, no compaction in the core run — the model is <strong>on its own</strong>.</li>
-        </ul>
-    </div>
-    <div class="slide-no">03</div>
-</section>
-
-<!-- 4 — RAW ROT CURVE -->
-<section class="slide" id="s3">
+<!-- ============ SLIDE 3 — THE CORE MEASUREMENT ============ -->
+<section class="slide" id="s2" aria-label="The core measurement">
     <div class="slide-content">
         <div class="kicker reveal">the core measurement</div>
-        <h2 class="reveal">Rot until complete <span style="color:var(--muted);font-weight:400;font-size:.8em;">— no intervention</span></h2>
+        <h2 class="reveal">Recall decays in a clean <span class="tealtext">staircase</span></h2>
         <div class="row wrap" style="align-items:stretch;">
             <div class="col reveal" style="flex:1.6;">
-                <div class="chart-panel">
-                    <svg class="chart" viewBox="0 0 620 300" data-chart="decay" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Recall decays from 100% to 0% by turn 16"></svg>
-                    <div class="legend"><span><i style="background:var(--accent)"></i>recall % (oldest facts)</span><span><i style="background:var(--accent2)"></i>live context tokens</span></div>
+                <div class="chart-panel" data-chart-panel="decay">
+                    <div class="hud">
+                        <span class="hud-stat"><b data-hud="turn">t1</b><small>turn</small></span>
+                        <span class="hud-stat"><b data-hud="recall" class="greentext">100%</b><small>recall</small></span>
+                        <span class="hud-stat"><b data-hud="tokens">0</b><small>cum tokens</small></span>
+                        <button class="replay" data-replay="decay" aria-label="Replay decay animation" title="Replay">&#8635; replay</button>
+                    </div>
+                    <svg class="chart" viewBox="0 0 620 300" data-chart="decay" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Recall holds at 100 percent then collapses 100 to 67 to 33 to 0, fully rotted at turn 14"></svg>
+                    <input class="scrub" type="range" min="0" max="100" value="0" step="0.5" data-scrub="decay" aria-label="Scrub decay timeline">
+                    <div class="legend"><span><i style="background:var(--accent)"></i>recall % (oldest needle)</span><span><i style="background:var(--accent2)"></i>context fill toward window</span></div>
                 </div>
             </div>
             <div class="col reveal" style="flex:1;">
                 <ul class="blist">
-                    <li>Recall holds at <strong class="greentext">100%</strong> while everything fits…</li>
-                    <li>then <strong>collapses 100&rarr;67&rarr;33&rarr;0</strong> over three turns as the window overflows.</li>
-                    <li>The run <strong>self-terminates at turn 16</strong> on sustained zero.</li>
-                    <li><span>Ollama truncates the oldest tokens — the model literally loses them.</span></li>
+                    <li>Recall holds at <strong class="greentext">100%</strong> while the needle still fits in context.</li>
+                    <li>Then it <strong>collapses 100&rarr;67&rarr;33&rarr;0</strong> over three turns as the window overflows.</li>
+                    <li>Rot onset is <strong>turn 12</strong>; recall hits <strong class="redtext">zero at turn 14</strong> and stays there.</li>
+                    <li><span>The oldest tokens are dropped &mdash; the model literally no longer has the needle.</span></li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="slide-no">03</div>
+</section>
+
+<!-- ============ SLIDE 4 — WHY TRUST IT ============ -->
+<section class="slide" id="s3" aria-label="Why trust it">
+    <div class="slide-content">
+        <div class="kicker reveal">why you can trust it</div>
+        <h2 class="reveal">A predictable needle can be <span class="redtext">faked</span> &mdash; ours can&rsquo;t</h2>
+        <div class="row wrap" style="align-items:stretch;">
+            <div class="col reveal" style="flex:1.6;">
+                <div class="chart-panel" data-chart-panel="confound">
+                    <div class="hud hud-min">
+                        <button class="replay" data-replay="confound" aria-label="Replay confound comparison" title="Replay">&#8635; replay</button>
+                    </div>
+                    <svg class="chart" viewBox="0 0 620 300" data-chart="confound" preserveAspectRatio="xMidYMid meet" role="img" aria-label="A deterministic needle lets a 14B model fake recall to turn 27; the unpredictable needle drops it at turn 16"></svg>
+                    <div class="legend"><span><i style="background:var(--accent2)"></i>deterministic needle &mdash; faked to t27</span><span><i style="background:var(--accent)"></i>unpredictable needle &mdash; drops t16</span></div>
+                </div>
+            </div>
+            <div class="col reveal" style="flex:1;">
+                <ul class="blist">
+                    <li>With a <strong>deterministic</strong> needle, a 14B model &ldquo;held on&rdquo; all the way to <strong>turn 27</strong> &mdash; even recovering to 100%.</li>
+                    <li>But those memos were long gone from context. It was <strong class="redtext">inferring the pattern</strong>, not recalling the code.</li>
+                    <li>Switch to a <strong>random, unpredictable</strong> needle and the curve drops at <strong>turn 16</strong> &mdash; real retention only.</li>
+                    <li><span>This is why context-clock&rsquo;s recall numbers are credible.</span></li>
                 </ul>
             </div>
         </div>
@@ -308,142 +371,146 @@ svg.chart { width: 100%; height: auto; display: block; }
     <div class="slide-no">04</div>
 </section>
 
-<!-- 5 — THE CONFOUND -->
-<section class="slide" id="s4">
+<!-- ============ SLIDE 5 — MODEL-INDEPENDENCE (headline) ============ -->
+<section class="slide" id="s4" aria-label="Model independence">
+    <div class="glow" style="width:36vw;height:36vw;background:var(--accent);top:0;left:30%;opacity:.12;"></div>
     <div class="slide-content">
-        <div class="kicker reveal">credibility check</div>
-        <h2 class="reveal">A "smarter" model looked robust — it was <span class="redtext">cheating</span></h2>
+        <div class="kicker reveal">the headline</div>
+        <h2 class="reveal">Context rot is <span class="tealtext">model&#8209;independent</span></h2>
         <div class="row wrap" style="align-items:stretch;">
             <div class="col reveal" style="flex:1.6;">
-                <div class="chart-panel">
-                    <svg class="chart" viewBox="0 0 620 300" data-chart="confound" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Deterministic needle lets a 14B model fake recall to turn 27; unpredictable needle drops at 16"></svg>
-                    <div class="legend"><span><i style="background:var(--accent2)"></i>qwen2.5:14b — guessable needle</span><span><i style="background:var(--accent)"></i>qwen2.5:14b — unpredictable needle</span></div>
+                <div class="chart-panel" data-chart-panel="models">
+                    <div class="hud">
+                        <span class="hud-stat"><b data-hud="turn">t1</b><small>turn</small></span>
+                        <span class="hud-stat"><b data-hud="rotted">0 / 7</b><small>rotted</small></span>
+                        <button class="replay" data-replay="models" aria-label="Replay seven-model race" title="Replay">&#8635; replay</button>
+                    </div>
+                    <svg class="chart" viewBox="0 0 620 300" data-chart="models" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Seven models all rot on the identical staircase; four local models rot at turn 14 and three client-windowed models rot at turn 10"></svg>
+                    <input class="scrub" type="range" min="0" max="100" value="0" step="0.5" data-scrub="models" aria-label="Scrub seven-model timeline">
+                    <div class="legend">
+                        <span><i style="background:var(--accent)"></i>llama3.2 &middot; 3B</span>
+                        <span><i style="background:var(--blue)"></i>qwen2.5 &middot; 14B</span>
+                        <span><i style="background:var(--accent3)"></i>phi-4 &middot; 14B</span>
+                        <span><i style="background:var(--green)"></i>mistral-small &middot; 24B</span>
+                        <span><i style="background:var(--accent2)"></i>DeepSeek-R1 &middot; 671B</span>
+                        <span><i style="background:var(--amber)"></i>GPT-5.4-mini</span>
+                        <span><i style="background:var(--pink)"></i>Claude Haiku</span>
+                    </div>
                 </div>
             </div>
-            <div class="col reveal" style="flex:1;">
-                <ul class="blist">
-                    <li>With a <strong>guessable</strong> needle (<span class="mono">Memo N&rarr;k00N</span>), the 14B model "held on" to turn 27 — even recovering to 100%.</li>
-                    <li>But by turn 16 those memos are <strong>gone from context</strong>. It was <strong class="redtext">inferring the pattern</strong>, not recalling.</li>
-                    <li><strong>Fix:</strong> unpredictable codes &rarr; the curve drops at <strong>turn 16</strong>. Real retention only.</li>
-                </ul>
+            <div class="col reveal center" style="flex:1;align-items:center;text-align:center;">
+                <div class="huge" data-count="7" data-suffix="">7</div>
+                <h3><strong>3B &rarr; 671B</strong> &middot; one staircase</h3>
+                <p style="text-align:center;">All <strong>7 models</strong> trace the identical <strong>100&rarr;67&rarr;33&rarr;0</strong> decay. They differ only in <strong>onset</strong>: the four local <span class="mono">num_ctx</span> runs (3B&ndash;24B) rot at <strong class="tealtext">turn 14</strong>; the three client-windowed runs &mdash; DeepSeek-R1, GPT-5.4-mini, Claude Haiku &mdash; rot earlier at <strong class="tealtext">turn 10</strong>. A bigger or smarter model doesn&rsquo;t escape it &mdash; <strong>onset just tracks the context budget.</strong></p>
             </div>
         </div>
     </div>
     <div class="slide-no">05</div>
 </section>
 
-<!-- 6 — MODEL INDEPENDENT (HEADLINE) -->
-<section class="slide" id="s5">
-    <div class="glow" style="width:36vw;height:36vw;background:var(--accent);top:0;left:30%;opacity:.12;"></div>
+<!-- ============ SLIDE 6 — BIGGER WINDOW IS NOT A FIX ============ -->
+<section class="slide" id="s5" aria-label="Bigger window is not a fix">
     <div class="slide-content">
-        <div class="kicker reveal">the headline</div>
-        <h2 class="reveal">Raw context rot is <span class="tealtext">model&#8209;independent</span></h2>
-        <div class="row wrap" style="align-items:stretch;">
-            <div class="col reveal" style="flex:1.6;">
-                <div class="chart-panel">
-                    <svg class="chart" viewBox="0 0 620 300" data-chart="models" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Three models all rot at turn 16 on the identical curve"></svg>
-                    <div class="legend">
-                        <span><i style="background:var(--accent)"></i>llama3.2 · 3B</span>
-                        <span><i style="background:var(--blue)"></i>qwen2.5 · 14B</span>
-                        <span><i style="background:var(--accent3)"></i>phi4 · 14B</span>
-                        <span><i style="background:var(--green)"></i>mistral · 24B</span>
-                        <span><i style="background:var(--accent2)"></i>deepseek-r1 · 671B*</span>
-                    </div>
-                </div>
-            </div>
-            <div class="col reveal center" style="flex:1;align-items:center;text-align:center;">
-                <div class="huge" data-count="16" data-suffix="">16</div>
-                <h3><strong>3B &rarr; 671B</strong> · one curve</h3>
-                <p style="text-align:center;">Four local models (3B&ndash;24B) rot identically at <strong>turn 16</strong>; <strong>DeepSeek-R1 (671B, API)</strong> rots the same 100&rarr;67&rarr;33&rarr;0. Across a <strong>~200&times;</strong> span, truncation drops the oldest tokens regardless of model — <strong class="tealtext">a bigger model doesn't help.</strong> <span style="font-size:.8em;opacity:.7">*R1 on a constrained client-side window &rarr; earlier onset (t12), same shape.</span></p>
-            </div>
+        <div class="kicker reveal">scaling the window</div>
+        <h2 class="reveal">A bigger window buys <span style="color:var(--accent2)">time, not reliability</span></h2>
+        <div class="reveal chart-panel" data-chart="bars" style="margin-top:.3rem;">
+            <div class="bar-row"><span class="blab">ctx 1024</span><div class="bar-track"><div class="bar-fill" data-w="17" style="background:linear-gradient(90deg,#1f6feb,#58a6ff)"><span class="bval">23,449 tok</span></div></div></div>
+            <div class="bar-row"><span class="blab">ctx 2048</span><div class="bar-track"><div class="bar-fill" data-w="33" style="background:linear-gradient(90deg,#2dd4bf,#58a6ff)"><span class="bval">44,908 tok</span></div></div></div>
+            <div class="bar-row"><span class="blab">ctx 4096</span><div class="bar-track"><div class="bar-fill" data-w="100" style="background:linear-gradient(90deg,#f0883e,#f85149)"><span class="bval">136,813 tok</span></div></div></div>
+        </div>
+        <div class="row wrap reveal">
+            <p style="flex:1;">Window-size sweep on <strong>llama3.2</strong>: cumulative tokens scale <strong class="tealtext">super-linearly</strong> &mdash; roughly <strong>6&times;</strong> from 1024&rarr;4096.</p>
+            <p style="flex:1;">Yet every window decays to the <strong class="redtext">same recall floor</strong>. You pay far more tokens for a longer runway to the exact same cliff.</p>
         </div>
     </div>
     <div class="slide-no">06</div>
 </section>
 
-<!-- 7 — BIGGER WINDOW IS A TRAP -->
-<section class="slide" id="s6">
+<!-- ============ SLIDE 7 — WHAT WORKS ============ -->
+<section class="slide" id="s6" aria-label="What works: external memory">
     <div class="slide-content">
-        <div class="kicker reveal">scaling the window</div>
-        <h2 class="reveal">A bigger window is a <span style="color:var(--accent2)">trap</span></h2>
-        <div class="reveal chart-panel" data-chart="bars" style="margin-top:.3rem;">
-            <div class="bar-row"><span class="blab">1024</span><div class="bar-track"><div class="bar-fill" data-w="17" style="background:linear-gradient(90deg,#1f6feb,#58a6ff)"><span class="bval">23,449 tok</span></div></div></div>
-            <div class="bar-row"><span class="blab">2048</span><div class="bar-track"><div class="bar-fill" data-w="33" style="background:linear-gradient(90deg,#2dd4bf,#58a6ff)"><span class="bval">44,908 tok</span></div></div></div>
-            <div class="bar-row"><span class="blab">4096</span><div class="bar-track"><div class="bar-fill" data-w="100" style="background:linear-gradient(90deg,#f0883e,#f85149)"><span class="bval">136,813 tok</span></div></div></div>
-        </div>
-        <div class="row wrap reveal">
-            <p style="flex:1;">Token consumption scales <strong>super-linearly</strong> with window size — <strong class="tealtext">~6&times;</strong> the tokens from 1024&rarr;4096.</p>
-            <p style="flex:1;">Yet every window decays to the <strong class="redtext">same recall floor</strong>. More room buys <strong>time, not reliability</strong> — at far higher cost.</p>
-        </div>
-    </div>
-    <div class="slide-no">07</div>
-</section>
-
-<!-- 8 — THE PAYOFF: MEMORY -->
-<section class="slide" id="s7">
-    <div class="slide-content">
-        <div class="kicker reveal">the lever</div>
-        <h2 class="reveal">Retrieve what's needed — don't stack everything</h2>
+        <div class="kicker reveal">what actually works</div>
+        <h2 class="reveal">Retrieve what&rsquo;s needed &mdash; don&rsquo;t stack everything</h2>
         <div class="cmp reveal" style="margin-top:.3rem;">
             <div class="side">
-                <h4 style="color:var(--red)">full&#8209;context (stack it all)</h4>
-                <div class="metric"><small>live context</small><b class="redtext">→ 976</b></div>
+                <h4 style="color:var(--red)">full context (stack it all)</h4>
                 <div class="metric"><small>cumulative tokens</small><b class="redtext" data-count="23449">23,449</b></div>
                 <div class="metric"><small>compactions</small><b class="redtext">4</b></div>
-                <div class="metric"><small>recall</small><b class="redtext">↓ 33%</b></div>
+                <div class="metric"><small>recall</small><b class="redtext">&darr; 33%</b></div>
             </div>
             <div class="side" style="border-color:rgba(45,212,191,.4)">
-                <h4 style="color:var(--green)">memory backend (retrieve)</h4>
-                <div class="metric"><small>live context</small><b class="greentext">flat 167</b></div>
+                <h4 style="color:var(--green)">external memory (retrieve)</h4>
                 <div class="metric"><small>cumulative tokens</small><b class="greentext" data-count="3060">3,060</b></div>
                 <div class="metric"><small>compactions</small><b class="greentext">0</b></div>
                 <div class="metric"><small>recall</small><b class="greentext">100%</b></div>
             </div>
         </div>
-        <p class="reveal center" style="text-align:center;margin:0 auto;"><strong class="tealtext">~7.7× fewer tokens, zero compactions, perfect recall.</strong> The fix isn't a bigger window — it's external memory.</p>
+        <p class="reveal center" style="text-align:center;margin:0 auto;"><strong class="tealtext">~7.7&times; fewer tokens, zero compactions, perfect recall.</strong> Same llama3.2 model, same task &mdash; an external memory backend retrieves only what&rsquo;s needed, so the context stays flat and never forgets.</p>
+    </div>
+    <div class="slide-no">07</div>
+</section>
+
+<!-- ============ SLIDE 8 — COST / REACH ============ -->
+<section class="slide" id="s7" aria-label="Cost and reach">
+    <div class="slide-content">
+        <div class="kicker reveal">cost &amp; reach</div>
+        <h2 class="reveal">7 models, end to end, for <span class="tealtext">~$0.27</span></h2>
+        <div class="grid g3 reveal" style="margin-top:.4rem;">
+            <div class="statcard"><div class="num greentext mono">$0</div><h3>4 local models</h3><p>llama3.2, qwen2.5, phi-4, mistral-small &mdash; run on Ollama (Apple Silicon), unlimited.</p></div>
+            <div class="statcard"><div class="num mono" style="color:var(--accent2)">~$0.27</div><h3>2 via OpenRouter API</h3><p>DeepSeek-R1 + GPT-5.4-mini, billed by the OpenRouter API &mdash; about a quarter total.</p></div>
+            <div class="statcard"><div class="num mono" style="color:var(--pink)">7th</div><h3>Claude Haiku</h3><p>The third client-windowed model in the cohort &mdash; rounds out the 671B&rarr;Haiku span.</p></div>
+        </div>
+        <p class="reveal">The full benchmark &mdash; every curve in this deck &mdash; reproduces for the price of a couple of API calls. Nothing here required exotic infrastructure.</p>
     </div>
     <div class="slide-no">08</div>
 </section>
 
-<!-- 9 — TAKEAWAYS -->
-<section class="slide" id="s8">
+<!-- ============ SLIDE 9 — TAKEAWAYS ============ -->
+<section class="slide" id="s8" aria-label="Takeaways">
     <div class="slide-content">
         <div class="kicker reveal">what to take away</div>
         <h2 class="reveal">Four findings</h2>
         <div class="grid g2 reveal" style="margin-top:.4rem;">
-            <div class="statcard"><div class="num tealtext mono">01</div><h3>Rot is model-independent</h3><p>At a fixed window with no intervention, 3B and 14B models rot identically — truncation doesn't care how smart the model is.</p></div>
-            <div class="statcard"><div class="num mono" style="color:var(--accent2)">02</div><h3>Bigger window ≠ fix</h3><p>It delays the cliff but never escapes it, and burns super-linearly more tokens to get there.</p></div>
-            <div class="statcard"><div class="num mono" style="color:var(--accent3)">03</div><h3>Compaction trades detail for room</h3><p>An <em>agent</em> intervention — raw models truncate, they don't summarize. Model size matters here, not for raw rot.</p></div>
-            <div class="statcard"><div class="num mono greentext">04</div><h3>External memory is the lever</h3><p>Retrieve-what's-needed stays flat, cheap, and never forgets.</p></div>
+            <div class="statcard"><div class="num tealtext mono">01</div><h3>Rot is model-independent</h3><p>With no compaction, all 7 models (3B&rarr;671B) rot on the identical 100&rarr;67&rarr;33&rarr;0 staircase. Only the onset turn differs.</p></div>
+            <div class="statcard"><div class="num mono" style="color:var(--accent2)">02</div><h3>Onset tracks context budget</h3><p>Local <span class="mono">num_ctx</span> runs rot at turn 14; tighter client-windowed runs at turn 10. More budget delays the cliff &mdash; it never removes it.</p></div>
+            <div class="statcard"><div class="num mono" style="color:var(--accent3)">03</div><h3>The benchmark resists faking</h3><p>A random needle blocks pattern-inference &mdash; a deterministic one let a 14B model fake recall to turn 27. Unpredictability is what makes recall numbers real.</p></div>
+            <div class="statcard"><div class="num mono greentext">04</div><h3>External memory is the lever</h3><p>Retrieve-what&rsquo;s-needed stays flat (3,060 vs 23,449 tokens), zero compactions, perfect recall. A bigger window is not the fix.</p></div>
         </div>
     </div>
     <div class="slide-no">09</div>
 </section>
 
-<!-- 10 — CLOSING -->
-<section class="slide" id="s9">
+<!-- ============ SLIDE 10 — METHOD FOOTER ============ -->
+<section class="slide" id="s9" aria-label="Method">
     <div class="glow" style="width:42vw;height:42vw;background:var(--accent);bottom:-15%;right:-5%;"></div>
     <div class="slide-content center" style="align-items:center;text-align:center;">
-        <div class="kicker reveal" style="justify-content:center;">reproduce it</div>
-        <h2 class="reveal">100% local. Ollama only. Zero API cost.</h2>
+        <div class="kicker reveal" style="justify-content:center;">method &amp; reproduce</div>
+        <h2 class="reveal">One harness &mdash; <span class="tealtext">local &amp; API</span>, temperature 0.</h2>
         <div class="chart-panel reveal mono" style="text-align:left;max-width:min(92vw,640px);font-size:var(--mono);color:var(--accent);">
-<div style="color:var(--muted)"># the headline run — rot until complete</div>
+<div style="color:var(--muted)"># the headline run — rot until recall hits zero</div>
 ollama pull llama3.2<br>
 python -m context_clock.run --model llama3.2 \<br>
 &nbsp;&nbsp;--until-rotted --limit 1024 --turns 60<span class="cursor"></span>
         </div>
         <div class="chips reveal" style="justify-content:center;">
-            <span class="chip"><i class="dot" style="background:var(--green)"></i>57 tests green</span>
-            <span class="chip"><i class="dot" style="background:var(--accent)"></i>llama3.2 · qwen2.5:14b · phi4:14b</span>
-            <span class="chip"><i class="dot" style="background:var(--accent3)"></i>raw rot · compaction · memory</span>
+            <span class="chip"><i class="dot" style="background:var(--green)"></i>74 tests passing</span>
+            <span class="chip"><i class="dot" style="background:var(--accent)"></i>7 models &middot; 3B&rarr;671B</span>
+            <span class="chip"><i class="dot" style="background:var(--blue)"></i>temperature 0</span>
+            <span class="chip"><i class="dot" style="background:var(--accent2)"></i>Ollama + OpenRouter</span>
         </div>
-        <p class="reveal" style="text-align:center;">The arc reproduces everywhere. Onset and cost are model-specific — but the failure is universal, and the fix is memory.</p>
+        <p class="reveal" style="text-align:center;">Local Ollama on Apple Silicon for the four small models; the OpenRouter API for DeepSeek-R1 and GPT-5.4-mini. Same loop, same grading, same staircase &mdash; the rot is universal, and the fix is memory.</p>
     </div>
     <div class="slide-no">10</div>
 </section>
 
-<nav class="nav-dots" id="dots" aria-label="slide navigation"></nav>
-<div class="kbd-hint">↑ ↓ / space to navigate</div>
+</main>
+
+<nav class="nav-dots" id="dots" aria-label="Slide navigation"></nav>
+<div class="arrows" aria-label="Deck navigation">
+    <button id="prev" aria-label="Previous slide" title="Previous (Left / Up)">&#8249;</button>
+    <span class="pageno" id="pageno">1 / 10</span>
+    <button id="next" aria-label="Next slide" title="Next (Right / Down / Space)">&#8250;</button>
+</div>
 
 <script>
 (function () {
@@ -451,157 +518,339 @@ python -m context_clock.run --model llama3.2 \<br>
     const slides = Array.from(document.querySelectorAll('.slide'));
     const dotsWrap = document.getElementById('dots');
     const progress = document.getElementById('progress');
+    const pageno = document.getElementById('pageno');
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
     // ---- nav dots ----
     slides.forEach((s, i) => {
         const b = document.createElement('button');
         b.setAttribute('aria-label', 'Go to slide ' + (i + 1));
-        b.addEventListener('click', () => slides[i].scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }));
+        b.addEventListener('click', () => go(i));
         dotsWrap.appendChild(b);
     });
     const dots = Array.from(dotsWrap.children);
 
-    let current = 0;
-    function setActive(i) {
+    let current = -1;
+    function go(i) {
+        i = Math.max(0, Math.min(slides.length - 1, i));
+        if (i === current) return;
         current = i;
         slides.forEach((s, k) => s.classList.toggle('active', k === i));
         dots.forEach((d, k) => d.classList.toggle('on', k === i));
-        progress.style.width = ((i) / (slides.length - 1) * 100) + '%';
+        progress.style.width = (i / (slides.length - 1) * 100) + '%';
+        pageno.textContent = (i + 1) + ' / ' + slides.length;
+        animateSlide(slides[i]);
     }
 
-    // ---- active-slide detection ----
-    const io = new IntersectionObserver((entries) => {
-        entries.forEach(e => {
-            if (e.isIntersecting && e.intersectionRatio > 0.55) {
-                const i = slides.indexOf(e.target);
-                if (i !== -1) { setActive(i); animateSlide(e.target); }
-            }
-        });
-    }, { threshold: [0.55] });
-    slides.forEach(s => io.observe(s));
-
-    // ---- keyboard ----
+    // ---- keyboard navigation (deck style: arrows both axes, space, Home/End) ----
     window.addEventListener('keydown', (ev) => {
-        if (['ArrowDown', 'PageDown', ' '].includes(ev.key)) { ev.preventDefault(); go(current + 1); }
-        else if (['ArrowUp', 'PageUp'].includes(ev.key)) { ev.preventDefault(); go(current - 1); }
-        else if (ev.key === 'Home') go(0);
-        else if (ev.key === 'End') go(slides.length - 1);
+        if (['ArrowDown', 'ArrowRight', 'PageDown', ' '].includes(ev.key)) { ev.preventDefault(); go(current + 1); }
+        else if (['ArrowUp', 'ArrowLeft', 'PageUp'].includes(ev.key)) { ev.preventDefault(); go(current - 1); }
+        else if (ev.key === 'Home') { ev.preventDefault(); go(0); }
+        else if (ev.key === 'End') { ev.preventDefault(); go(slides.length - 1); }
     });
-    function go(i) { i = Math.max(0, Math.min(slides.length - 1, i)); slides[i].scrollIntoView({ behavior: reduce ? 'auto' : 'smooth' }); }
+    document.getElementById('prev').addEventListener('click', () => go(current - 1));
+    document.getElementById('next').addEventListener('click', () => go(current + 1));
 
-    // ============ CHART RENDERING ============
+    // =================================================================
+    //  ONE SOURCE OF TRUTH — identical data to the report.
+    //  recall[] = recall % per turn (index 0 = turn 1).
+    //  cumTokens = cumulative tokens at full rot.
+    //  cohort:'local'  -> num_ctx runs, rot onset t12, fully rotted t14.
+    //  cohort:'window' -> 1024-token client-side window, onset t8, rotted t10.
+    // =================================================================
+    const COLORS = {
+        accent:'#2dd4bf', accent2:'#f0883e', accent3:'#a371f7',
+        green:'#3fb950', red:'#f85149', blue:'#58a6ff',
+        pink:'#ff7ab6', amber:'#ffd166'
+    };
+    const STAIR_LOCAL  = [100,100,100,100,100,100,100,100,100,100,100,67,33,0,0,0];   // 16 turns, rotted t14
+    const STAIR_WINDOW = [100,100,100,100,100,100,100,67,33,0,0,0];                    // 12 turns, rotted t10
+
+    const MODELS = [
+        { name:'llama3.2',      size:'3B',   cohort:'local',  color:COLORS.accent,  cumTokens:33187, recall:STAIR_LOCAL  },
+        { name:'qwen2.5',       size:'14B',  cohort:'local',  color:COLORS.blue,    cumTokens:33197, recall:STAIR_LOCAL  },
+        { name:'phi-4',         size:'14B',  cohort:'local',  color:COLORS.accent3, cumTokens:32879, recall:STAIR_LOCAL  },
+        { name:'mistral-small', size:'24B',  cohort:'local',  color:COLORS.green,   cumTokens:33294, recall:STAIR_LOCAL  },
+        { name:'DeepSeek-R1',   size:'671B', cohort:'window', color:COLORS.accent2, cumTokens:25730, recall:STAIR_WINDOW },
+        { name:'GPT-5.4-mini',  size:'',     cohort:'window', color:COLORS.amber,   cumTokens:17901, recall:STAIR_WINDOW },
+        { name:'Claude Haiku',  size:'',     cohort:'window', color:COLORS.pink,    cumTokens:8173,  recall:STAIR_WINDOW }
+    ];
+
+    const DECAY = MODELS[0].recall;
+    const DECAY_CUM = MODELS[0].cumTokens;
+
+    // confound: deterministic needle faked to t27 (even recovering to 100%);
+    // the unpredictable needle drops at t16.
+    const detNeedle = [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,67,67,67,100,33,33,33,33,0,0,0,0];
+    const realNeedle = [100,100,100,100,100,100,100,100,100,100,100,100,100,100,100,67,33,0,0,0,0,0,0,0,0,0,0]; // drops t16
+
+    // ===================== CHART GEOMETRY =====================
     const W = 620, H = 300, PADL = 46, PADR = 16, PADT = 18, PADB = 34;
     const xOf = (t, tmax) => PADL + (t - 1) / (tmax - 1) * (W - PADL - PADR);
     const yOf = (v) => PADT + (1 - v / 100) * (H - PADT - PADB);
+    const ns = 'http://www.w3.org/2000/svg';
+    const mk = (tag, attrs) => { const e = document.createElementNS(ns, tag);
+        for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
 
+    function recallColor(v) {
+        if (v >= 100) return COLORS.green;
+        if (v >= 67)  return COLORS.amber;
+        if (v >= 33)  return COLORS.accent2;
+        return COLORS.red;
+    }
+    function sampleAt(data, fi) {
+        const i = Math.floor(fi), f = fi - i;
+        if (i >= data.length - 1) return data[data.length - 1];
+        return data[i] + (data[i + 1] - data[i]) * f;
+    }
     function gridAndAxes(svg, tmax, xticks) {
-        const ns = 'http://www.w3.org/2000/svg';
         [0, 25, 50, 75, 100].forEach(v => {
             const y = yOf(v);
-            const ln = document.createElementNS(ns, 'line');
-            ln.setAttribute('class', 'gridline'); ln.setAttribute('x1', PADL); ln.setAttribute('x2', W - PADR);
-            ln.setAttribute('y1', y); ln.setAttribute('y2', y); svg.appendChild(ln);
-            const tx = document.createElementNS(ns, 'text');
-            tx.setAttribute('class', 'axislabel'); tx.setAttribute('x', PADL - 8); tx.setAttribute('y', y + 4);
-            tx.setAttribute('text-anchor', 'end'); tx.textContent = v + '%'; svg.appendChild(tx);
+            svg.appendChild(mk('line', { class:'gridline', x1:PADL, x2:W-PADR, y1:y, y2:y }));
+            const tx = mk('text', { class:'axislabel', x:PADL-8, y:y+4, 'text-anchor':'end' });
+            tx.textContent = v + '%'; svg.appendChild(tx);
         });
         xticks.forEach(t => {
-            const tx = document.createElementNS(ns, 'text');
-            tx.setAttribute('class', 'axislabel'); tx.setAttribute('x', xOf(t, tmax)); tx.setAttribute('y', H - 12);
-            tx.setAttribute('text-anchor', 'middle'); tx.textContent = 't' + t; svg.appendChild(tx);
+            const tx = mk('text', { class:'axislabel', x:xOf(t,tmax), y:H-12, 'text-anchor':'middle' });
+            tx.textContent = 't' + t; svg.appendChild(tx);
         });
     }
     function linePath(data, tmax) {
         return data.map((v, i) => (i ? 'L' : 'M') + xOf(i + 1, tmax).toFixed(1) + ' ' + yOf(v).toFixed(1)).join(' ');
     }
+    function partialPath(data, tmax, fi) {
+        const pts = [];
+        const last = Math.min(fi, data.length - 1);
+        const whole = Math.floor(last);
+        for (let i = 0; i <= whole; i++) pts.push([xOf(i + 1, tmax), yOf(data[i])]);
+        if (last > whole) { const v = sampleAt(data, last); pts.push([xOf(last + 1, tmax), yOf(v)]); }
+        if (!pts.length) return '';
+        return pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+    }
+    function partialArea(data, tmax, fi) {
+        const lp = partialPath(data, tmax, fi);
+        if (!lp) return '';
+        const last = Math.min(fi, data.length - 1);
+        return lp + ' L' + xOf(last + 1, tmax).toFixed(1) + ' ' + yOf(0) + ' L' + xOf(1, tmax) + ' ' + yOf(0) + ' Z';
+    }
     function addLine(svg, data, tmax, color, opts) {
-        const ns = 'http://www.w3.org/2000/svg';
         opts = opts || {};
+        let area = null;
         if (opts.area) {
-            const area = document.createElementNS(ns, 'path');
-            const d = linePath(data, tmax) + ' L' + xOf(data.length, tmax).toFixed(1) + ' ' + yOf(0) + ' L' + xOf(1, tmax) + ' ' + yOf(0) + ' Z';
-            area.setAttribute('d', d); area.setAttribute('class', 'chart-area'); area.setAttribute('fill', color);
+            area = mk('path', { d: linePath(data, tmax) + ' L' + xOf(data.length, tmax).toFixed(1) + ' ' + yOf(0) + ' L' + xOf(1, tmax) + ' ' + yOf(0) + ' Z',
+                class:'chart-area', fill:color });
             svg.appendChild(area);
         }
-        const p = document.createElementNS(ns, 'path');
-        p.setAttribute('d', linePath(data, tmax)); p.setAttribute('class', 'chart-line');
-        p.setAttribute('stroke', color); p.style.color = color;
+        const p = mk('path', { d: linePath(data, tmax), class:'chart-line', stroke:color });
+        p.style.color = color;
         if (opts.dash) p.setAttribute('stroke-dasharray', '6 5');
         svg.appendChild(p);
-        // draw animation
         const len = p.getTotalLength();
         p.style.transition = 'none';
         p.style.strokeDasharray = opts.dash ? '6 5' : len;
         p.style.strokeDashoffset = opts.dash ? 0 : len;
-        p._len = len; p._dash = !!opts.dash;
+        p._len = len; p._dash = !!opts.dash; p._data = data; p._tmax = tmax; p._area = area; p._color = color;
         return p;
     }
-    function endDot(svg, data, tmax, color) {
-        const ns = 'http://www.w3.org/2000/svg';
-        const lastZero = data.indexOf(0) === -1 ? data.length - 1 : data.indexOf(0);
-        const c = document.createElementNS(ns, 'circle');
-        c.setAttribute('cx', xOf(lastZero + 1, tmax)); c.setAttribute('cy', yOf(data[lastZero]));
-        c.setAttribute('r', 5); c.setAttribute('fill', color); c.setAttribute('class', 'pt');
-        c.style.filter = 'drop-shadow(0 0 6px ' + color + ')';
-        svg.appendChild(c);
-    }
-
-    const css = getComputedStyle(document.documentElement);
-    const C = n => css.getPropertyValue(n).trim();
-
-    // data
-    const recall16 = [100,100,100,100,100,100,100,100,100,100,100,67,33,0,0,0];
-    const ctxFrac  = [14,22,31,39,48,56,64,72,80,89,98,98,98,97,97,97]; // live ctx as % of 1024-ish, for shape
-    const detQwen  = [100,100,100,100,100,100,100,100,100,100,100,100,67,67,67,100,100,67,100,33,33,33,33,33,0,0,0];
 
     const charts = {};
+
     document.querySelectorAll('svg[data-chart]').forEach(svg => {
         const kind = svg.getAttribute('data-chart');
-        const paths = [];
+        const panel = svg.closest('[data-chart-panel]') || svg.closest('.chart-panel');
+
         if (kind === 'decay') {
-            gridAndAxes(svg, 16, [1,4,8,12,16]);
-            paths.push(addLine(svg, ctxFrac, 16, C('--accent2'), { dash: true }));
-            paths.push(addLine(svg, recall16, 16, C('--accent'), { area: true }));
-            endDot(svg, recall16, 16, C('--red'));
+            gridAndAxes(svg, 16, [1,4,8,12,14,16]);
+            const ctxFrac = [14,22,31,39,48,56,64,72,80,89,98,98,98,97,97,97];
+            addLine(svg, ctxFrac, 16, COLORS.accent2, { dash: true });
+            const recallPath = addLine(svg, DECAY, 16, COLORS.accent, { area: true });
+            const ring = mk('circle', { class:'playhead-ring', r:11, fill:'none', 'stroke-width':2,
+                cx:xOf(1,16), cy:yOf(100), stroke:COLORS.green, opacity:0 });
+            const dot = mk('circle', { class:'playhead', r:6, cx:xOf(1,16), cy:yOf(100), fill:COLORS.green, opacity:0 });
+            svg.appendChild(ring); svg.appendChild(dot);
+            charts.decay = { svg, panel, tmax:16, recallPath, ring, dot, data:DECAY, cumTokens:DECAY_CUM, kind:'decay' };
+
         } else if (kind === 'confound') {
             gridAndAxes(svg, 27, [1,8,16,22,27]);
-            paths.push(addLine(svg, detQwen, 27, C('--accent2'), {}));
-            paths.push(addLine(svg, recall16, 27, C('--accent'), { area: true }));
-            endDot(svg, recall16, 27, C('--accent'));
-            endDot(svg, detQwen, 27, C('--accent2'));
+            const det = addLine(svg, detNeedle, 27, COLORS.accent2, {});
+            const real = addLine(svg, realNeedle, 27, COLORS.accent, { area: true });
+            const dotReal = mk('circle', { class:'pt', r:5, cx:xOf(realNeedle.indexOf(0)+1,27), cy:yOf(0),
+                fill:COLORS.accent }); dotReal.style.filter = 'drop-shadow(0 0 6px '+COLORS.accent+')';
+            const dotDet = mk('circle', { class:'pt', r:5, cx:xOf(detNeedle.length,27), cy:yOf(0),
+                fill:COLORS.accent2 }); dotDet.style.filter = 'drop-shadow(0 0 6px '+COLORS.accent2+')';
+            svg.appendChild(dotReal); svg.appendChild(dotDet);
+            charts.confound = { svg, panel, tmax:27, paths:[det, real], kind:'confound' };
+
         } else if (kind === 'models') {
-            gridAndAxes(svg, 16, [1,4,8,12,16]);
-            // four identical curves, tiny jitter so all are visible tracking together
-            const jit = (d) => recall16.map(v => Math.max(0, Math.min(100, v + d)));
-            paths.push(addLine(svg, jit(3.3), 16, C('--accent'), {}));   // llama3.2 3B
-            paths.push(addLine(svg, jit(1.1), 16, C('--blue'), {}));     // qwen2.5 14B
-            paths.push(addLine(svg, jit(-1.1), 16, C('--accent3'), {})); // phi4 14B
-            paths.push(addLine(svg, jit(-3.3), 16, C('--green'), {}));   // mistral 24B
-            // DeepSeek-R1 (671B, API): same shape, earlier onset (constrained client-side window)
-            const r1 = [100, 100, 100, 100, 100, 100, 100, 67, 33, 0, 0, 0];
-            paths.push(addLine(svg, r1, 16, C('--accent2'), {}));
-            endDot(svg, recall16, 16, C('--red'));
+            gridAndAxes(svg, 16, [1,4,8,10,14,16]);
+            const jitGroup = (idx, total) => (idx - (total - 1) / 2) * 1.8;
+            const localG  = MODELS.filter(m => m.cohort === 'local');
+            const windowG = MODELS.filter(m => m.cohort === 'window');
+            const racers = [];
+            MODELS.forEach((m) => {
+                const grp = m.cohort === 'local' ? localG : windowG;
+                const j = jitGroup(grp.indexOf(m), grp.length);
+                const data = m.recall.map(v => Math.max(0, Math.min(100, v + j)));
+                const p = addLine(svg, data, 16, m.color, {});
+                const dot = mk('circle', { class:'playhead', r:4.5, cx:xOf(1,16), cy:yOf(100), fill:m.color, opacity:0 });
+                svg.appendChild(dot);
+                const rotTurn = m.recall.indexOf(0) + 1;
+                const lbl = mk('text', { class:'rotlabel', x:xOf(rotTurn,16),
+                    y:yOf(0) + (m.cohort === 'local' ? 16 : -8), 'text-anchor':'middle', fill:m.color });
+                lbl.textContent = 'rotted t' + rotTurn;
+                svg.appendChild(lbl);
+                racers.push({ model:m, path:p, dot, data, rotTurn, lbl, fired:false });
+            });
+            charts.models = { svg, panel, tmax:16, racers, kind:'models' };
         }
-        charts[kind] = paths;
     });
 
-    function animateSlide(slide) {
-        if (slide.dataset.animated) return;
-        slide.dataset.animated = '1';
-        // line draw
-        slide.querySelectorAll('svg[data-chart] .chart-line').forEach((p, i) => {
-            if (p._dash) return; // dashed reference line stays static
+    // ===================== PLAYHEAD ANIMATION ENGINE =====================
+    const cubicInOut = k => k < 0.5 ? 4*k*k*k : 1 - Math.pow(-2*k+2, 3) / 2;
+    function hudEl(panel, name) { return panel ? panel.querySelector('[data-hud="' + name + '"]') : null; }
+    function scrubEl(kind) { return document.querySelector('[data-scrub="' + kind + '"]'); }
+    function setScrubFill(el, pct) { if (el) { el.value = pct; el.style.setProperty('--fill', pct + '%'); } }
+
+    function renderDecayAt(c, fi) {
+        const data = c.data, tmax = c.tmax;
+        const turn = Math.min(data.length, Math.floor(fi) + 1);
+        const recallNow = Math.round(sampleAt(data, Math.min(fi, data.length - 1)));
+        const col = recallColor(recallNow);
+        c.recallPath.style.strokeDasharray = 'none';
+        c.recallPath.style.strokeDashoffset = 0;
+        c.recallPath.setAttribute('d', partialPath(data, tmax, fi));
+        c.recallPath.setAttribute('stroke', col); c.recallPath.style.color = col;
+        if (c.recallPath._area) {
+            c.recallPath._area.setAttribute('d', partialArea(data, tmax, fi));
+            c.recallPath._area.setAttribute('fill', col);
+        }
+        const px = xOf(Math.min(fi, data.length - 1) + 1, tmax);
+        const py = yOf(sampleAt(data, Math.min(fi, data.length - 1)));
+        c.dot.setAttribute('cx', px); c.dot.setAttribute('cy', py); c.dot.setAttribute('fill', col); c.dot.style.opacity = 1;
+        c.ring.setAttribute('cx', px); c.ring.setAttribute('cy', py); c.ring.setAttribute('stroke', col); c.ring.style.opacity = 0.5;
+        const turnEl = hudEl(c.panel, 'turn'); if (turnEl) turnEl.textContent = 't' + turn;
+        const recEl = hudEl(c.panel, 'recall');
+        if (recEl) { recEl.textContent = recallNow + '%'; recEl.style.color = col; }
+        const tokEl = hudEl(c.panel, 'tokens');
+        if (tokEl) {
+            const frac = Math.min(1, fi / (data.length - 1));
+            tokEl.textContent = Math.round(c.cumTokens * frac).toLocaleString();
+        }
+    }
+
+    function renderModelsAt(c, fi) {
+        let rotted = 0;
+        c.racers.forEach(r => {
+            const last = Math.min(fi, r.data.length - 1);
+            r.path.style.strokeDasharray = 'none'; r.path.style.strokeDashoffset = 0;
+            r.path.setAttribute('d', partialPath(r.data, c.tmax, last));
+            const px = xOf(last + 1, c.tmax), py = yOf(sampleAt(r.data, last));
+            r.dot.setAttribute('cx', px); r.dot.setAttribute('cy', py); r.dot.style.opacity = 1;
+            if (fi + 1 >= r.rotTurn) {
+                rotted++;
+                if (!r.fired) { r.fired = true; r.lbl.classList.add('on');
+                    if (!reduce) dissolveBurst(c.svg, xOf(r.rotTurn, c.tmax), yOf(0), r.model.color); }
+            } else if (r.fired && fi + 1 < r.rotTurn) {
+                r.fired = false; r.lbl.classList.remove('on');
+            }
+        });
+        const turn = Math.min(16, Math.floor(fi) + 1);
+        const turnEl = hudEl(c.panel, 'turn'); if (turnEl) turnEl.textContent = 't' + turn;
+        const rotEl = hudEl(c.panel, 'rotted'); if (rotEl) rotEl.textContent = rotted + ' / 7';
+    }
+
+    function dissolveBurst(svg, x, y, color) {
+        const g = mk('g', { class:'dissolve' });
+        for (let i = 0; i < 7; i++) {
+            const a = (i / 7) * Math.PI * 2;
+            const r = 3 + Math.random() * 5;
+            const cx = x + Math.cos(a) * r, cy = y + Math.sin(a) * r;
+            const c = mk('circle', { cx, cy, r: 1.4 + Math.random() * 1.6, fill: color });
+            c.style.animationDelay = (Math.random() * 0.15) + 's';
+            g.appendChild(c);
+        }
+        svg.appendChild(g);
+        setTimeout(() => g.remove(), 1100);
+    }
+
+    const tweens = {};
+    function playChart(kind, dur) {
+        const c = charts[kind]; if (!c) return;
+        if (tweens[kind]) cancelAnimationFrame(tweens[kind]);
+        const fimax = (kind === 'decay') ? c.data.length - 1 :
+                      (kind === 'models') ? 15 : 0;
+        if (reduce) {
+            if (kind === 'decay') renderDecayAt(c, fimax);
+            else if (kind === 'models') renderModelsAt(c, fimax);
+            setScrubFill(scrubEl(kind), 100);
+            return;
+        }
+        if (kind === 'models') c.racers.forEach(r => { r.fired = false; r.lbl.classList.remove('on'); });
+        const t0 = performance.now();
+        function frame(now) {
+            const k = Math.min(1, (now - t0) / dur);
+            const e = cubicInOut(k);
+            const fi = e * fimax;
+            if (kind === 'decay') renderDecayAt(c, fi);
+            else if (kind === 'models') renderModelsAt(c, fi);
+            setScrubFill(scrubEl(kind), Math.round(e * 100));
+            if (k < 1) tweens[kind] = requestAnimationFrame(frame);
+        }
+        tweens[kind] = requestAnimationFrame(frame);
+    }
+
+    document.querySelectorAll('[data-replay]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const kind = btn.getAttribute('data-replay');
+            if (kind === 'confound') replayConfound();
+            else playChart(kind, kind === 'models' ? 3200 : 2600);
+        });
+    });
+    document.querySelectorAll('[data-scrub]').forEach(sc => {
+        sc.addEventListener('input', () => {
+            const kind = sc.getAttribute('data-scrub');
+            const c = charts[kind]; if (!c) return;
+            if (tweens[kind]) cancelAnimationFrame(tweens[kind]);
+            const fimax = (kind === 'decay') ? c.data.length - 1 : 15;
+            const fi = (parseFloat(sc.value) / 100) * fimax;
+            if (kind === 'decay') renderDecayAt(c, fi);
+            else if (kind === 'models') renderModelsAt(c, fi);
+            sc.style.setProperty('--fill', sc.value + '%');
+        });
+    });
+
+    function replayConfound() {
+        const c = charts.confound; if (!c) return;
+        c.paths.forEach((p, i) => {
+            p.style.transition = 'none';
+            p.style.strokeDasharray = p._len; p.style.strokeDashoffset = p._len;
+            void p.getBoundingClientRect();
             requestAnimationFrame(() => {
-                p.style.transition = 'stroke-dashoffset 1.5s cubic-bezier(.4,.05,.2,1) ' + (i * 0.25 + 0.2) + 's';
+                if (reduce) { p.style.strokeDashoffset = 0; return; }
+                p.style.transition = 'stroke-dashoffset 1.6s cubic-bezier(.4,.05,.2,1) ' + (i * 0.3) + 's';
                 p.style.strokeDashoffset = 0;
             });
         });
-        // bars
+    }
+
+    // ===================== PER-SLIDE ANIMATION =====================
+    function animateSlide(slide) {
+        slide.querySelectorAll('svg[data-chart]').forEach(svg => {
+            const kind = svg.getAttribute('data-chart');
+            if (kind === 'decay' || kind === 'models') {
+                setTimeout(() => playChart(kind, kind === 'models' ? 3200 : 2600), reduce ? 0 : 350);
+            } else if (kind === 'confound') {
+                setTimeout(replayConfound, reduce ? 0 : 350);
+            }
+        });
+
+        if (slide.dataset.animated) return;
+        slide.dataset.animated = '1';
         slide.querySelectorAll('.bar-fill').forEach((b, i) => {
+            if (reduce) { b.style.transition = 'none'; b.style.width = b.dataset.w + '%'; return; }
             setTimeout(() => { b.style.width = b.dataset.w + '%'; }, 200 + i * 180);
         });
-        // count ups
         slide.querySelectorAll('[data-count]').forEach(el => countUp(el));
     }
 
@@ -609,19 +858,20 @@ python -m context_clock.run --model llama3.2 \<br>
         const target = parseInt(el.dataset.count, 10);
         const suffix = el.dataset.suffix || '';
         if (reduce) { el.textContent = target.toLocaleString() + suffix; return; }
-        const dur = 1100, t0 = performance.now();
+        const dur = 1300, t0 = performance.now();
         function tick(now) {
             const k = Math.min(1, (now - t0) / dur);
-            const e = 1 - Math.pow(1 - k, 3);
+            const s = 1.2;
+            let e = 1 + (s + 1) * Math.pow(k - 1, 3) + s * Math.pow(k - 1, 2);
+            if (k >= 1) e = 1;
             el.textContent = Math.round(target * e).toLocaleString() + suffix;
             if (k < 1) requestAnimationFrame(tick);
         }
         requestAnimationFrame(tick);
     }
 
-    // init
-    setActive(0);
-    animateSlide(slides[0]);
+    // init — show first slide
+    go(0);
 })();
 </script>
 </body>

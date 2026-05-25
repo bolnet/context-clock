@@ -22,6 +22,8 @@ CSV_HEADER = [
     "completion_tokens",
     "recall",
     "compaction_event",
+    "turn_cost",
+    "cumulative_cost",
 ]
 
 
@@ -40,6 +42,8 @@ def write_csv(rows: list[TurnRow], path: str | Path) -> None:
                     row.completion_tokens,
                     "" if row.recall is None else row.recall,
                     int(row.compaction_event),
+                    row.turn_cost,
+                    row.cumulative_cost,
                 ]
             )
 

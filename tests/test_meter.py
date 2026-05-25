@@ -13,6 +13,26 @@ class TestTokenMeter:
         m = TokenMeter()
         assert m.cumulative_total == 0
         assert m.current_context == 0
+        assert m.cumulative_cost == 0.0
+
+    def test_records_billed_cost(self):
+        m = TokenMeter()
+        m.record(prompt_tokens=120, completion_tokens=4, cost=0.00013)
+        assert m.cumulative_cost == 0.00013
+
+    def test_accumulates_cost_across_turns(self):
+        m = TokenMeter()
+        m.record(prompt_tokens=120, completion_tokens=4, cost=0.00013)
+        m.record(prompt_tokens=130, completion_tokens=5, cost=0.00021)
+        assert m.cumulative_cost == 0.00013 + 0.00021
+
+    def test_none_cost_contributes_zero(self):
+        # Local (Ollama) calls have no billed cost — they must not crash the
+        # meter nor inflate cumulative_cost.
+        m = TokenMeter()
+        m.record(prompt_tokens=100, completion_tokens=20, cost=None)
+        m.record(prompt_tokens=100, completion_tokens=20)  # cost omitted
+        assert m.cumulative_cost == 0.0
 
     def test_records_one_turn(self):
         m = TokenMeter()
