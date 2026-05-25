@@ -60,17 +60,23 @@ context. Re-running with unpredictable needles (ctx 1024, no compaction, probe e
 
 ![qwen rot](results/qwen2.5_14b-instruct_rot_ctx1024.png)
 
-| Model | Recall trajectory | Fully rotted |
-|---|---|---|
-| llama3.2 (3B) | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
-| qwen2.5:14b | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
-| phi4:14b | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
+| Model | Size | Recall trajectory | Fully rotted |
+|---|---|---|---|
+| llama3.2 | 3B | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
+| qwen2.5 | 14B | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
+| phi4 | 14B | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
+| mistral-small | 24B | 100% (t1–11) → 67 → 33 → 0 | turn **16** |
 
-**Identical across all three.** Once the answer can't be guessed, a 3B model and two different
-14B models rot at exactly the same turn, on the same curve. **Raw context rot is model-independent**
-— truncation drops the oldest tokens regardless of model capacity or family. (Contrast the
-*compaction* experiment below, where model size genuinely matters for recall robustness to lossy
-summaries — a different question.)
+**Identical across all four.** Across an **8× parameter spread (3B → 24B)** and three model families,
+once the answer can't be guessed every model rots at exactly the same turn, on the same curve.
+**Raw context rot is model-independent** — truncation drops the oldest tokens regardless of model
+capacity or family. (Contrast the *compaction* experiment below, where model size genuinely matters
+for recall robustness to lossy summaries — a different question.)
+
+> **Local ceiling:** `qwq:32b` (a 32B *reasoning* model) was attempted but exceeded a 600s
+> per-call timeout on this hardware before completing a turn — its long `<think>` traces make
+> it intractable locally (and would also confound a 16-token probe). The practical local ceiling
+> here is ~24B; bigger models need the API/native-window path.
 
 **Per-turn token usage** (`turn_tokens`, `prompt_tokens`, `completion_tokens`) is recorded each
 turn in the CSV and printed live; the per-turn cost plateaus at ~2.96K tokens once the window

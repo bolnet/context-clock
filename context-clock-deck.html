@@ -346,13 +346,14 @@ svg.chart { width: 100%; height: auto; display: block; }
                         <span><i style="background:var(--accent)"></i>llama3.2 · 3B</span>
                         <span><i style="background:var(--blue)"></i>qwen2.5 · 14B</span>
                         <span><i style="background:var(--accent3)"></i>phi4 · 14B</span>
+                        <span><i style="background:var(--green)"></i>mistral · 24B</span>
                     </div>
                 </div>
             </div>
             <div class="col reveal center" style="flex:1;align-items:center;text-align:center;">
                 <div class="huge" data-count="16" data-suffix="">16</div>
-                <h3>every model rots at <strong>turn 16</strong></h3>
-                <p style="text-align:center;">3B and two different 14B models trace the <strong>identical</strong> 100&rarr;67&rarr;33&rarr;0 curve. Truncation drops the oldest tokens regardless of model size or family — <strong class="tealtext">a bigger model doesn't help.</strong></p>
+                <h3>all <strong>4 models</strong> rot at <strong>turn 16</strong></h3>
+                <p style="text-align:center;">Across an <strong>8&times; parameter spread (3B&rarr;24B)</strong> and three families, every model traces the <strong>identical</strong> 100&rarr;67&rarr;33&rarr;0 curve. Truncation drops the oldest tokens regardless of model size — <strong class="tealtext">a bigger model doesn't help.</strong></p>
             </div>
         </div>
     </div>
@@ -570,10 +571,12 @@ python -m context_clock.run --model llama3.2 \<br>
             endDot(svg, detQwen, 27, C('--accent2'));
         } else if (kind === 'models') {
             gridAndAxes(svg, 16, [1,4,8,12,16]);
-            // three identical curves, tiny jitter so all three are visible tracking together
-            paths.push(addLine(svg, recall16.map(v => Math.min(100, v + 2.2)), 16, C('--accent'), {}));
-            paths.push(addLine(svg, recall16, 16, C('--blue'), {}));
-            paths.push(addLine(svg, recall16.map(v => Math.max(0, v - 2.2)), 16, C('--accent3'), { area: false }));
+            // four identical curves, tiny jitter so all are visible tracking together
+            const jit = (d) => recall16.map(v => Math.max(0, Math.min(100, v + d)));
+            paths.push(addLine(svg, jit(3.3), 16, C('--accent'), {}));   // llama3.2 3B
+            paths.push(addLine(svg, jit(1.1), 16, C('--blue'), {}));     // qwen2.5 14B
+            paths.push(addLine(svg, jit(-1.1), 16, C('--accent3'), {})); // phi4 14B
+            paths.push(addLine(svg, jit(-3.3), 16, C('--green'), {}));   // mistral 24B
             endDot(svg, recall16, 16, C('--red'));
         }
         charts[kind] = paths;
