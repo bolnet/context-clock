@@ -203,6 +203,14 @@ frontier models pass. This shows R1 handles basic retrieval to 64K — **not** t
 Stressing it for real needs **128K+, multiple needles, distractors, or semantic queries** (see
 `BENCHMARK_LOG.md §8`). That's the next experiment, not a closed result.
 
+**R1 on the same rot test as the local models.** API models have no `num_ctx`, so we truncate the
+prompt **client-side** to 1024 tokens and run the identical `--until-rotted` workload (with
+`--probe-max-tokens 2048`, since a reasoning model needs room to finish before answering — a
+16-token cap truncates its code and confounds recall). Result: a clean **100% (t1–7) → 67 → 33 →
+0 (rot at turn 12)** — the same monotonic decay as llama3.2 / qwen / phi4 / mistral. So
+**model-independence holds for a 671B frontier model too**; the slightly earlier onset is a
+window-size artifact (the `len/4` cap left R1 a ~635-actual-token window), not a model effect.
+
 ## Status
 
 v1 complete: 57 tests green (compaction, grader, meter, driver helpers, retrieval memory, NIAH documents, unpredictable needles, rot-until-complete stop logic, per-turn token usage

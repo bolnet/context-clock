@@ -51,6 +51,21 @@ class TestRunStopsWhenRotted:
         assert len(rows) == 3
         assert all(r.recall == 0.0 for r in rows)
 
+    def test_probe_max_tokens_is_configurable(self):
+        # reasoning models need a bigger answer budget so the code isn't truncated
+        class _RecordMaxTokens:
+            def __init__(self):
+                self.seen = []
+
+            def complete(self, messages, max_tokens=256):
+                self.seen.append(max_tokens)
+                return Completion(text="nope", prompt_tokens=10, completion_tokens=1)
+
+        stub = _RecordMaxTokens()
+        run_session(stub, turns=3, limit=1024, cadence=1, compaction_enabled=False,
+                    stop_when_rotted=True, probe_max_tokens=2048)
+        assert stub.seen and all(mt == 2048 for mt in stub.seen)  # every probe used the budget
+
     def test_records_per_turn_token_usage(self):
         # stub reports prompt=10, completion=1 per call; turn 1 makes one probe call
         rows = run_session(

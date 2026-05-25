@@ -79,6 +79,29 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+def cap_messages(messages: list[dict], limit_tokens: int) -> list[dict]:
+    """Client-side context window: keep the system preamble + the most-recent
+    messages that fit under ``limit_tokens`` (oldest dropped first).
+
+    Mimics what a server-side ``num_ctx`` does, so API models with no truncation
+    knob can run the same constrained-window experiment. The most-recent message
+    is always kept, even if it alone exceeds the limit.
+    """
+    if not messages:
+        return messages
+    system = messages[:1] if messages[0].get("role") == "system" else []
+    rest = messages[len(system):]
+    budget = limit_tokens - sum(_estimate_tokens(m["content"]) for m in system)
+    kept: list[dict] = []
+    for message in reversed(rest):
+        cost = _estimate_tokens(message["content"])
+        if kept and budget - cost < 0:
+            break
+        budget -= cost
+        kept.append(message)
+    return system + list(reversed(kept))
+
+
 def run_session(
     provider: OllamaProvider,
     *,
@@ -92,6 +115,8 @@ def run_session(
     pad_repeat: int = 4,
     stop_when_rotted: bool = False,
     rot_streak: int = 3,
+    client_window: int | None = None,
+    probe_max_tokens: int = 16,
 ) -> list[TurnRow]:
     """Run the arc and return one row per turn.
 
@@ -99,6 +124,10 @@ def run_session(
     early once recall accuracy has stayed at the floor for ``rot_streak``
     consecutive probes (full context rot). Pair with ``compaction_enabled=False``
     and ``cadence=1`` for the pure rot stress test.
+
+    ``client_window`` truncates each sent prompt to that many tokens client-side
+    (oldest dropped) — mimics a server ``num_ctx`` for API models with no such
+    knob, so they can run the same constrained-window experiment.
     """
     meter = TokenMeter()
     facts: list[Fact] = []
@@ -111,6 +140,12 @@ def run_session(
     ]
     fact_costs: list[int] = []  # estimated tokens per fact message (parallel to transcript[1:])
     rows: list[TurnRow] = []
+
+    def _send(extra: list[dict], max_tokens: int):
+        msgs = transcript + extra
+        if client_window:
+            msgs = cap_messages(msgs, client_window)
+        return provider.complete(msgs, max_tokens=max_tokens)
 
     for turn in range(1, turns + 1):
         fact = make_fact(turn, pad_repeat)
@@ -128,18 +163,13 @@ def run_session(
             correct = 0
             for idx in targets:
                 question = f"What is the vault code in Memo {facts[idx].index}? Reply with only the code."
-                response = provider.complete(
-                    transcript + [{"role": "user", "content": question}], max_tokens=16
-                )
+                response = _send([{"role": "user", "content": question}], probe_max_tokens)
                 meter.record(response.prompt_tokens, response.completion_tokens)
                 if grade(facts[idx].answer, response.text):
                     correct += 1
             recall = correct / len(targets) if targets else None
         else:
-            response = provider.complete(
-                transcript + [{"role": "user", "content": "Acknowledge in one word."}],
-                max_tokens=8,
-            )
+            response = _send([{"role": "user", "content": "Acknowledge in one word."}], 8)
             meter.record(response.prompt_tokens, response.completion_tokens)
 
         compaction_event = False

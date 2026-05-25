@@ -3,11 +3,27 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from .driver import run_memory_session, run_session
 from .provider import OllamaProvider
 from .report import plot, write_csv
+
+
+def _load_openrouter_key() -> str:
+    """OPENROUTER_API_KEY from env, else from a local gitignored .env. Never logged."""
+    key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not key:
+        env = Path(".env")
+        if env.exists():
+            for line in env.read_text().splitlines():
+                if line.strip().startswith("OPENROUTER_API_KEY="):
+                    key = line.split("=", 1)[1].strip()
+                    break
+    if not key:
+        raise SystemExit("OPENROUTER_API_KEY not found (env var or .env)")
+    return key
 
 
 def main() -> None:
@@ -22,10 +38,18 @@ def main() -> None:
     parser.add_argument("--memory", action="store_true", help="memory backend: retrieve relevant fact, keep context flat")
     parser.add_argument("--pad-repeat", type=int, default=4, help="haystack size dial per memo (×16 words ≈ tokens/turn); raise to fill big windows")
     parser.add_argument("--timeout", type=float, default=120.0, help="per-call timeout (s); raise for big windows / cold loads")
+    parser.add_argument("--provider", choices=["ollama", "openrouter"], default="ollama", help="local Ollama or an OpenRouter API model")
+    parser.add_argument("--client-window", type=int, default=None, help="truncate each sent prompt to N tokens client-side (gives API models a num_ctx-like window)")
+    parser.add_argument("--probe-max-tokens", type=int, default=16, help="answer-token budget per probe; raise (e.g. 2048) for reasoning models that think before answering")
     parser.add_argument("--out", default="results", help="directory for CSV + chart")
     args = parser.parse_args()
 
-    provider = OllamaProvider(model=args.model, num_ctx=args.limit, timeout=args.timeout)
+    if args.provider == "openrouter":
+        from .openai_provider import OpenAICompatProvider
+        provider = OpenAICompatProvider(model=args.model, api_key=_load_openrouter_key(), timeout=args.timeout)
+    else:
+        provider = OllamaProvider(model=args.model, num_ctx=args.limit, timeout=args.timeout)
+
     if args.memory:
         rows = run_memory_session(provider, turns=args.turns, cadence=args.cadence, pad_repeat=args.pad_repeat)
     elif args.until_rotted:
@@ -38,6 +62,8 @@ def main() -> None:
             compaction_enabled=False,
             pad_repeat=args.pad_repeat,
             stop_when_rotted=True,
+            client_window=args.client_window,
+            probe_max_tokens=args.probe_max_tokens,
         )
     else:
         rows = run_session(
@@ -48,6 +74,8 @@ def main() -> None:
             threshold=args.threshold,
             compaction_enabled=not args.no_compaction,
             pad_repeat=args.pad_repeat,
+            client_window=args.client_window,
+            probe_max_tokens=args.probe_max_tokens,
         )
 
     if args.until_rotted:
