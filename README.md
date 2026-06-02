@@ -7,6 +7,9 @@ LLM agent burns as a conversation grows — and proves that retrieved memory cut
 > Free · MIT · runs locally on [Ollama](https://ollama.com) (no API keys) or against any
 > OpenRouter model. Every number below is reproducible — 99 tests, deterministic workload.
 
+**🔗 Live:** [the benchmark, visualized](https://bolnet.github.io/context-clock/) ·
+[animated deep-dive](https://bolnet.github.io/context-clock/context-clock-benchmark.html)
+
 ---
 
 ## The finding
