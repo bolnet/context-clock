@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .anthropic_provider import AnthropicProvider, load_api_key
 from .agent import run_session
+from .openrouter_provider import SLUGS, OpenRouterCacheProvider
 from .bench import (
     POLICIES,
     busy_policy,
@@ -31,12 +32,34 @@ from .tasks import get_task
 from .tools import Workspace
 
 
+def _load_openrouter_key(env_path: str = ".env") -> str:
+    """OPENROUTER_API_KEY from env, else from a local gitignored .env. Never logged."""
+    import os
+
+    key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not key:
+        env = Path(env_path)
+        if env.exists():
+            for line in env.read_text().splitlines():
+                if line.strip().startswith("OPENROUTER_API_KEY="):
+                    key = line.split("=", 1)[1].strip()
+                    break
+    if not key:
+        raise SystemExit("OPENROUTER_API_KEY not found (env var or .env)")
+    return key
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="python -m context_clock.cachecost.run",
         description="Run a real coding task and measure its prompt-cache economics.",
     )
     parser.add_argument("--task", default="minesweeper")
+    parser.add_argument(
+        "--provider", default="openrouter", choices=["openrouter", "anthropic"],
+        help="openrouter reports real billed cost and derives cache writes from it; "
+             "anthropic reports the write count directly (needs ANTHROPIC_API_KEY)",
+    )
     parser.add_argument("--model", default="claude-sonnet-5", choices=sorted(PRICES))
     parser.add_argument("--policy", default="busy", choices=sorted(POLICIES))
     parser.add_argument(
@@ -58,11 +81,17 @@ def main(argv: list[str] | None = None) -> int:
         busy_policy() if args.policy == "busy" else sawtooth_policy(args.idle)
     )
 
-    provider = AnthropicProvider(model=args.model, api_key=load_api_key())
+    if args.provider == "anthropic":
+        provider = AnthropicProvider(model=args.model, api_key=load_api_key())
+    else:
+        provider = OpenRouterCacheProvider(
+            model=args.model, api_key=_load_openrouter_key()
+        )
 
     estimated_minutes = (task.n_turns - 1) * args.idle / 60 if args.policy == "sawtooth" else 0
     print(
-        f"task={task.name}  model={args.model}  policy={args.policy}  ttl={args.ttl}\n"
+        f"task={task.name}  model={args.model}  via {args.provider}  "
+        f"policy={args.policy}  ttl={args.ttl}\n"
         f"{task.n_turns} user turns · workspace {workspace_path}"
         + (f"\nidling {args.idle:.0f}s between turns (~{estimated_minutes:.0f} min of waiting)"
            if estimated_minutes else "")

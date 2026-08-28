@@ -31,6 +31,19 @@ Nothing in this module has been **measured** yet. The arithmetic and semantics l
 the live-measurement layer is not built. Derived scenario output is labelled *derived* wherever it
 prints. Per the project rule in `CLAUDE.md`, no figure here may be presented as measured, and none is.
 
+## The price card is independently confirmed
+
+The verdicts all rest on one price card, which would be a single point of failure if it were a
+lone transcription. OpenRouter publishes per-model rates for all four billing buckets on a public,
+keyless endpoint:
+
+```bash
+python -m context_clock.cachecost.price_check
+```
+
+**15 rates across 3 models, 0 disagreements** — every input, output, cache-read, 5-minute-write and
+1-hour-write rate matches. C1–C5 are confirmed by two independently maintained sources.
+
 ## The price card everything derives from
 
 USD per million tokens. Cache multipliers are structural, not per-model: read `0.10x`,
@@ -157,9 +170,40 @@ memory attacks the token curve itself: a flat ~200-token retrieval has almost no
 so it is both cheap to serve and nearly immune to the expiry cliff. Caching makes the quadratic
 affordable; memory removes it.
 
-## What is not built yet
+## The live benchmark
 
-The live-measurement layer. Claims C25, C26 and the M1 penalty are empirical and need a real API
-with `cache_control` to settle. That requires an Anthropic API key (`.env` currently holds only
-`OPENROUTER_API_KEY`) and spends real money — the sawtooth scenario deliberately buys cache misses.
-The scenarios in `scenarios.py` are the shapes such a run would drive.
+Built, tested, and not yet run. It drives a **real agentic coding session** — a headless Minesweeper
+engine across 6 user turns, with the agent writing files and running pytest until the suite is green
+— and records the cache split of every API request.
+
+```bash
+python -m context_clock.cachecost.run --policy busy
+python -m context_clock.cachecost.run --policy sawtooth --idle 420
+```
+
+Same task, same tokens, different timing. The gap between those two bills is the experiment.
+
+Deliberately **not** the Snake game from the talk: reproducing their workload would test whether we
+can copy a session, not whether the mechanism holds on a task nobody tuned for it.
+
+Two providers, with an honest difference recorded in the data:
+
+| | cache reads | cache writes | cost |
+|---|---|---|---|
+| **OpenRouter** (default) | reported (`cached_tokens`) | **derived** from billed cost | **real billed dollars** |
+| **Anthropic** direct | reported | reported | derived from the price card |
+
+OpenRouter's OpenAI-compatible usage block has no cache-write field, so writes are recovered
+algebraically from the billed total — two equations, two unknowns, exact (`derive_writes`). The
+trade is real and cuts both ways: OpenRouter gives a **measured** dollar figure and a derived token
+split; the native API gives measured tokens and a derived dollar figure. Runs record which.
+
+### Still unmeasured
+
+C25 (sub-agent overhead), C26 (the 99% cache-rate claim) and the M1 penalty need a live run to
+settle. `find_lookback_misses()` watches for the M1 signature during any session — a miss arriving
+well inside the TTL after a turn that appended more than 20 content blocks. Observing that in real
+work would be stronger evidence than provoking it with a synthetic probe.
+
+**Blocker:** the `OPENROUTER_API_KEY` in `.env` is revoked — `GET /api/v1/key` returns
+`401 {"message":"User not found."}`. Nothing can be measured until it is replaced.
