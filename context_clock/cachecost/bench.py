@@ -145,7 +145,9 @@ def summarize(run: AgentRun, model: str) -> str:
     lines = [
         f"task={run.task}  model={model}  policy={run.policy}",
         f"  {run.n_turns} user turns -> {run.n_requests} API requests"
-        f"   ({run.wall_clock / 60:.1f} min wall clock)   tests pass: {run.tests_passed}",
+        f"   ({run.wall_clock / 60:.1f} min wall clock)   tests pass: {run.tests_passed}"
+        + ("   [WINDOW EXHAUSTED — session outgrew the model's context limit]"
+           if run.window_exhausted else ""),
         "",
         "  COST",
         (f"    billed              ${billed:>9.4f}   measured, from the provider"

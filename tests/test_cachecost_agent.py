@@ -364,3 +364,48 @@ class TestCaptureIsolation:
             for p in sorted(capture.glob("req-*.json"))
         ]
         assert totals == sorted(totals)
+
+
+class TestWindowExhaustion:
+    """Outgrowing the context window is a terminal state, not a crash."""
+
+    class _ExhaustingProvider(FakeProvider):
+        def __init__(self, n_ok):
+            super().__init__([[_tool_use("list_files", {})]] * n_ok)
+            self.n_ok = n_ok
+            self.seen = 0
+
+        def complete(self, *a, **kw):
+            from context_clock.cachecost.anthropic_provider import ContextWindowExceeded
+
+            if self.seen >= self.n_ok:
+                raise ContextWindowExceeded("prompt is too long: 202214 > 200000")
+            self.seen += 1
+            return super().complete(*a, **kw)
+
+    def test_run_ends_cleanly_and_is_flagged(self, tmp_path):
+        run = run_session(ONE_TURN, self._ExhaustingProvider(3), Workspace(tmp_path))
+        assert run.window_exhausted is True
+
+    def test_measurements_before_the_limit_are_kept(self, tmp_path):
+        run = run_session(ONE_TURN, self._ExhaustingProvider(3), Workspace(tmp_path))
+        assert run.n_requests == 3
+        assert all(r.context_tokens > 0 for r in run.records)
+
+    def test_partial_run_still_prices_and_writes_a_csv(self, tmp_path):
+        run = run_session(ONE_TURN, self._ExhaustingProvider(2), Workspace(tmp_path))
+        assert to_session_usage(run, "claude-sonnet-5").n_requests == 2
+        path = write_records_csv(run, tmp_path / "partial.csv")
+        assert len(path.read_text().splitlines()) == 3
+
+    def test_wall_clock_is_recorded(self, tmp_path):
+        run = run_session(ONE_TURN, self._ExhaustingProvider(1), Workspace(tmp_path))
+        assert run.wall_clock >= 0
+
+
+class TestContextWindows:
+    def test_haiku_has_the_smaller_window(self):
+        from context_clock.cachecost.pricing import price_card
+
+        assert price_card("claude-haiku-4-5").context_window == 200_000
+        assert price_card("claude-sonnet-5").context_window == 1_000_000

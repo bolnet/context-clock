@@ -37,6 +37,9 @@ class PriceCard:
     model: str
     input_per_mtok: float
     output_per_mtok: float
+    #: Hard context limit. A long agentic session can reach it — that is a
+    #: terminal state of the workload, not a crash.
+    context_window: int = 1_000_000
 
     @property
     def cache_read_per_mtok(self) -> float:
@@ -59,9 +62,9 @@ class PriceCard:
 
 
 PRICES: dict[str, PriceCard] = {
-    "claude-opus-5": PriceCard("claude-opus-5", 5.00, 25.00),
-    "claude-sonnet-5": PriceCard("claude-sonnet-5", 2.00, 10.00),
-    "claude-haiku-4-5": PriceCard("claude-haiku-4-5", 1.00, 5.00),
+    "claude-opus-5": PriceCard("claude-opus-5", 5.00, 25.00, 1_000_000),
+    "claude-sonnet-5": PriceCard("claude-sonnet-5", 2.00, 10.00, 1_000_000),
+    "claude-haiku-4-5": PriceCard("claude-haiku-4-5", 1.00, 5.00, 200_000),
 }
 
 

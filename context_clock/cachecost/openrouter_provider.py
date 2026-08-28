@@ -23,7 +23,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
-from .anthropic_provider import CachedCompletion, _cache_control
+from .anthropic_provider import CachedCompletion, ContextWindowExceeded, _cache_control
 from .pricing import price_card
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -75,13 +75,19 @@ def to_openai_messages(messages: list[dict], cache_ttl: str = "5m") -> list[dict
 
         if tool_results:
             # A user turn made only of tool results fans out into one tool
-            # message per result.
+            # message per result. Content is a list, not a bare string, so the
+            # cache breakpoint can land here: in an agentic loop most turns end
+            # on a tool result, and a marker that cannot attach to one leaves
+            # the breakpoint frozen at the start of the turn while the tail
+            # grows — every appended token then bills at full price, forever.
             for block in tool_results:
                 out.append(
                     {
                         "role": "tool",
                         "tool_call_id": block.get("tool_use_id", ""),
-                        "content": str(block.get("content", "")),
+                        "content": [
+                            {"type": "text", "text": str(block.get("content", ""))}
+                        ],
                     }
                 )
             continue
@@ -119,9 +125,12 @@ def to_openai_messages(messages: list[dict], cache_ttl: str = "5m") -> list[dict
 def _mark_tail(messages: list[dict], ttl: str) -> list[dict]:
     """Put cache_control on the last markable content part.
 
-    Only text-part content can carry the marker; a ``tool`` message or a
-    string body is skipped and the marker walks backward, mirroring how the
-    API places an automatic breakpoint.
+    The marker must land on the **final** message of the conversation, so the
+    cached prefix advances every request. If it walks backward instead, the
+    breakpoint freezes and everything appended after it is billed uncached at
+    the full input rate — measured on a live run before this was fixed: cache
+    reads pinned at 77,354 tokens while the context grew past 133,000, with
+    ~56,000 tokens paying full price on every request.
     """
     for message in reversed(messages):
         content = message.get("content")
@@ -405,6 +414,8 @@ class OpenRouterCacheProvider:
             except urllib.error.HTTPError as exc:
                 if exc.code != 429 and exc.code < 500:
                     detail = exc.read().decode("utf-8", "replace")[:400]
+                    if "prompt is too long" in detail or "context" in detail.lower():
+                        raise ContextWindowExceeded(detail) from exc
                     raise RuntimeError(f"OpenRouter {exc.code}: {detail}") from exc
                 last = exc
             except urllib.error.URLError as exc:

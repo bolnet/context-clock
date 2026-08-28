@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..meter import TokenMeter
-from .anthropic_provider import AnthropicProvider, RequestRecord
+from .anthropic_provider import AnthropicProvider, ContextWindowExceeded, RequestRecord
 from .tasks import SYSTEM_PROMPT, Task
 from .tools import TOOL_SCHEMAS, Workspace, dispatch
 
@@ -40,6 +40,9 @@ class AgentRun:
     completed: bool = False
     tests_passed: bool = False
     wall_clock: float = 0.0
+    #: Set when the conversation outgrew the model's window mid-session. The
+    #: rows already collected remain valid measurements.
+    window_exhausted: bool = False
 
     @property
     def n_requests(self) -> int:
@@ -118,13 +121,21 @@ def run_session(
             gap = 0.0 if last_request_start is None else request_start - last_request_start
             last_request_start = request_start
 
-            completion = provider.complete(
-                messages,
-                system=system,
-                tools=TOOL_SCHEMAS,
-                max_tokens=max_tokens,
-                cache_ttl=cache_ttl,
-            )
+            try:
+                completion = provider.complete(
+                    messages,
+                    system=system,
+                    tools=TOOL_SCHEMAS,
+                    max_tokens=max_tokens,
+                    cache_ttl=cache_ttl,
+                )
+            except ContextWindowExceeded:
+                # The session outgrew the window. Stop cleanly and keep every
+                # measurement taken up to this point.
+                run.window_exhausted = True
+                run.wall_clock = time.monotonic() - session_start
+                run.tests_passed = workspace.tests_pass()
+                return run
 
             tool_uses = completion.tool_uses()
             # The assistant's blocks plus one tool_result each are what the next

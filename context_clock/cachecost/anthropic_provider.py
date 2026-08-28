@@ -24,6 +24,15 @@ import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
+class ContextWindowExceeded(RuntimeError):
+    """The conversation outgrew the model's context window.
+
+    A terminal state of the workload, not a transport failure: a long agentic
+    session legitimately reaches this, and the requests made before it are
+    valid measurements that must still be written out.
+    """
+
+
 ANTHROPIC_BASE_URL = "https://api.anthropic.com/v1"
 API_VERSION = "2023-06-01"
 

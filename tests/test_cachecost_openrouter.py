@@ -159,14 +159,17 @@ class TestMessageTranslation:
         out = to_openai_messages([{"role": "user", "content": [{"type": "text", "text": "hi"}]}])
         assert out[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
 
-    def test_marker_walks_back_past_unmarkable_tool_messages(self):
-        # A tool message carries a plain string; the marker must find the last
-        # part-shaped content rather than silently dropping the breakpoint.
+    def test_marker_lands_on_a_trailing_tool_result(self):
+        # This previously asserted the marker walking BACKWARD to the user turn,
+        # which was the bug: the breakpoint froze and the growing tail billed at
+        # the full input rate. It must land on the tail instead.
         out = to_openai_messages([
             {"role": "user", "content": [{"type": "text", "text": "hi"}]},
             {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "t", "content": "r"}]},
         ])
-        assert out[0]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+        assert out[-1]["role"] == "tool"
+        assert out[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+        assert "cache_control" not in out[0]["content"][-1]
 
     def test_one_hour_ttl_is_passed_through(self):
         out = to_openai_messages(
@@ -283,3 +286,58 @@ class TestReportedWriteCount:
         body = self._body(prompt=10_000, cached=0, write=10_000, output=0,
                           cost=_cost(SONNET, write=4_000, uncached=6_000))
         assert writes_disagree_by(body, SONNET) != 0
+
+
+class TestBreakpointAdvances:
+    """Regression: the cache breakpoint must land on the conversation's tail.
+
+    Measured on a live run before the fix — the marker walked backward past
+    string-bodied tool messages to the user turn, froze there, and left the
+    growing tail billing at the full input rate on every request.
+    """
+
+    def _turn(self, n_results):
+        return [
+            {"role": "user", "content": [{"type": "text", "text": "brief"}]},
+            {"role": "assistant", "content": [
+                {"type": "tool_use", "id": f"t{i}", "name": "run_tests", "input": {}}
+                for i in range(n_results)]},
+            {"role": "user", "content": [
+                {"type": "tool_result", "tool_use_id": f"t{i}", "content": "out"}
+                for i in range(n_results)]},
+        ]
+
+    def test_marker_lands_on_the_final_tool_result(self):
+        out = to_openai_messages(self._turn(1))
+        assert out[-1]["role"] == "tool"
+        assert out[-1]["content"][-1]["cache_control"] == {"type": "ephemeral"}
+
+    def test_marker_does_not_walk_back_to_the_user_turn(self):
+        out = to_openai_messages(self._turn(2))
+        assert "cache_control" not in out[0]["content"][-1]
+
+    def test_exactly_one_breakpoint_is_placed(self):
+        out = to_openai_messages(self._turn(3))
+        marked = sum(
+            1 for m in out if isinstance(m.get("content"), list)
+            for part in m["content"] if "cache_control" in part
+        )
+        assert marked == 1
+
+    def test_tool_content_is_a_markable_list_not_a_bare_string(self):
+        out = to_openai_messages(self._turn(1))
+        assert isinstance(out[-1]["content"], list)
+        assert out[-1]["content"][0]["type"] == "text"
+
+    def test_tool_call_id_still_pairs_the_result_to_its_call(self):
+        out = to_openai_messages(self._turn(2))
+        assert [m["tool_call_id"] for m in out if m["role"] == "tool"] == ["t0", "t1"]
+
+    def test_breakpoint_advances_as_the_conversation_grows(self):
+        short = to_openai_messages(self._turn(1))
+        longer = to_openai_messages(self._turn(1) + [
+            {"role": "assistant", "content": [{"type": "text", "text": "done"}]},
+        ])
+        assert short[-1]["role"] == "tool"
+        assert longer[-1]["role"] == "assistant"  # marker moved with the tail
+        assert "cache_control" in longer[-1]["content"][-1]
