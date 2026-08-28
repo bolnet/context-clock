@@ -409,3 +409,59 @@ class TestContextWindows:
 
         assert price_card("claude-haiku-4-5").context_window == 200_000
         assert price_card("claude-sonnet-5").context_window == 1_000_000
+
+
+class TestOpenEndedRun:
+    """`--until-complete`: the model ends the session, not a fixed turn count."""
+
+    CYCLING = Task(
+        name="c", brief="build it", followups=(), cycle=("do a bit more.",)
+    )
+
+    def _passing(self, tmp_path):
+        """A workspace whose suite is green, so completion can be honoured."""
+        workspace = Workspace(tmp_path)
+        workspace.write_file("test_ok.py", "def test_ok():\n    assert True\n")
+        return workspace
+
+    def test_stops_when_the_model_declares_completion(self, tmp_path):
+        from context_clock.cachecost.tasks import COMPLETION_SENTINEL
+
+        provider = FakeProvider([_text("more work"), _text(COMPLETION_SENTINEL)])
+        run = run_session(
+            self.CYCLING, self._passing(tmp_path), provider=provider,
+        ) if False else run_session(
+            self.CYCLING, provider, self._passing(tmp_path),
+            until_complete=True, max_turns=10,
+        )
+        assert run.n_turns == 2          # stopped early, not at max_turns
+        assert run.completed is True
+
+    def test_the_safety_cap_bounds_an_agent_that_never_finishes(self, tmp_path):
+        provider = FakeProvider([_text("still going")] * 20)
+        run = run_session(
+            self.CYCLING, provider, self._passing(tmp_path),
+            until_complete=True, max_turns=4,
+        )
+        assert run.n_turns == 4          # capped, not runaway
+
+    def test_completion_is_ignored_while_the_suite_is_red(self, tmp_path):
+        """The model does not get to declare victory over a failing suite."""
+        from context_clock.cachecost.tasks import COMPLETION_SENTINEL
+
+        workspace = Workspace(tmp_path)
+        workspace.write_file("test_bad.py", "def test_bad():\n    assert False\n")
+        provider = FakeProvider([_text(COMPLETION_SENTINEL)] * 20)
+        run = run_session(
+            self.CYCLING, provider, workspace, until_complete=True, max_turns=3,
+        )
+        assert run.n_turns == 3          # ran on to the cap despite the claim
+
+    def test_a_fixed_run_ignores_the_sentinel(self, tmp_path):
+        """Without --until-complete the scripted length is authoritative."""
+        from context_clock.cachecost.tasks import COMPLETION_SENTINEL
+
+        task = Task(name="f", brief="one", followups=("two", "three"))
+        provider = FakeProvider([_text(COMPLETION_SENTINEL)] * 10)
+        run = run_session(task, provider, self._passing(tmp_path))
+        assert run.n_turns == 3

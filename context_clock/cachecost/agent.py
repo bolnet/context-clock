@@ -21,7 +21,7 @@ from pathlib import Path
 
 from ..meter import TokenMeter
 from .anthropic_provider import AnthropicProvider, ContextWindowExceeded, RequestRecord
-from .tasks import SYSTEM_PROMPT, Task
+from .tasks import COMPLETION_SENTINEL, SYSTEM_PROMPT, Task
 from .tools import TOOL_SCHEMAS, Workspace, dispatch
 
 #: Hard ceiling on tool-call rounds per user turn. A model that loops forever
@@ -92,12 +92,27 @@ def run_session(
     on_record: Callable[[RequestRecord], None] | None = None,
     capture_dir: str | Path | None = None,
     turns: int | None = None,
+    until_complete: bool = False,
+    max_turns: int = 30,
 ) -> AgentRun:
-    """Drive ``task`` to completion, recording the cache split of every request."""
+    """Drive ``task`` to completion, recording the cache split of every request.
+
+    With ``until_complete`` the session length is decided by the **model**: it
+    keeps drawing cycle turns until it replies with the completion sentinel over
+    a green suite, or until ``max_turns``. The sentinel alone is not enough —
+    the harness re-runs the tests, because a model declaring victory over a red
+    suite is exactly the failure ``tests_pass()`` exists to catch.
+
+    Note what this costs the experiment: two runs may now differ in length, so
+    they are no longer a controlled pair and only **cost per completed task**
+    compares them honestly.
+    """
     run = AgentRun(task=task.name, model=provider.model, policy=policy_name)
     system = [{"type": "text", "text": SYSTEM_PROMPT}]
     messages: list[dict] = []
-    prompts = task.prompts(turns)
+    prompts = task.prompts(
+        max_turns if until_complete else turns, open_ended=until_complete
+    )
 
     session_start = time.monotonic()
     last_request_start: float | None = None
@@ -114,6 +129,7 @@ def run_session(
 
     for turn, prompt in enumerate(prompts):
         messages.append({"role": "user", "content": [{"type": "text", "text": prompt}]})
+        final_text = ""
 
         for round_index in range(MAX_ROUNDS_PER_TURN):
             policy(turn, round_index)
@@ -183,7 +199,13 @@ def run_session(
             messages.append({"role": "assistant", "content": list(completion.content)})
 
             if not tool_uses:
-                break  # the model answered instead of calling a tool: turn over
+                # The model answered instead of calling a tool: turn over. Its
+                # text is where an open-ended run looks for the sentinel.
+                final_text = " ".join(
+                    b.get("text", "") for b in completion.content
+                    if b.get("type") == "text"
+                )
+                break
 
             messages.append(
                 {"role": "user", "content": [_result_block(workspace, t) for t in tool_uses]}
@@ -192,6 +214,15 @@ def run_session(
             # Ran out of rounds. Recorded, not raised: a truncated turn is still
             # a valid measurement of the requests that did happen.
             run.completed = False
+
+        # The model may end an open-ended run, but only over a green suite —
+        # its own say-so has never been the completion test here.
+        if (
+            until_complete
+            and COMPLETION_SENTINEL in final_text
+            and workspace.tests_pass()
+        ):
+            break
 
     run.wall_clock = time.monotonic() - session_start
     run.tests_passed = workspace.tests_pass()

@@ -5,37 +5,65 @@
 
 ## What is running right now
 
-A detached (`nohup`, PPID 1) run that survives session exit:
+**Turn counts are no longer fixed at all — both arms run `--until-complete`.**
+The model ends the session by replying `GAME COMPLETE`, which the harness only
+honours over a **green suite** (it re-runs pytest to check). Safety cap
+`--max-turns 16` = the 13 scripted turns plus up to 3 open-ended ones. A detached
+(`nohup`, PPID 1) chain that survives session exit: busy first, then sawtooth.
 
 ```
-.venv/bin/python -m context_clock.cachecost.run --task snake --turns 8 \
+# arm 1, running now
+.venv/bin/python -m context_clock.cachecost.run --task snake --until-complete --max-turns 16 \
+  --model claude-sonnet-5 --provider openrouter --policy busy \
+  --ttl 5m --max-tokens 16384 --capture-context --tag cache-snakeopen-sonnet-busy
+
+# arm 2, starts automatically when arm 1 exits
+.venv/bin/python -m context_clock.cachecost.run --task snake --until-complete --max-turns 16 \
   --model claude-sonnet-5 --provider openrouter --policy sawtooth --idle 420 \
-  --ttl 5m --max-tokens 16384 --capture-context --tag cache-snake-sonnet-sawtooth
+  --ttl 5m --max-tokens 16384 --capture-context --tag cache-snakeopen-sonnet-sawtooth
 ```
 
-It idles **420s between each of the 8 turns** (7 pauses, ~49 min of pure waiting)
-plus roughly 25 min of work — so **~75 min end to end** from its start.
+Sawtooth idles **420s before each of turns 1-12** — 12 pauses, **84 min of pure
+waiting** — plus the work itself. Expect **~45-60 min for busy** and **~2.2h for
+sawtooth**: roughly **3.2h end to end**. Estimated **$18-22** for the pair.
 
-Check whether it is still alive:
+Check progress:
 
 ```bash
-pgrep -f "policy sawtooth"                        # empty means finished (or died)
-tail -5 results/cache-snake-sonnet-sawtooth.log
-grep -c MISS results/cache-snake-sonnet-sawtooth.log
+pgrep -f cachecost.run                                   # empty = both finished
+tail -3 results/cache-snakeopen-sonnet-busy.log
+tail -3 results/cache-snakeopen-sonnet-sawtooth.log
+grep -c MISS results/cache-snakeopen-sonnet-sawtooth.log   # expect ~12
 ```
 
-The log ends with `SAWTOOTH_EXIT=0` (suite green) or `SAWTOOTH_EXIT=1` (red).
+Logs end with `BUSY_EXIT=N` / `SAWTOOTH_EXIT=N`; 0 = suite green, 1 = red.
 A red suite is still valid cost data — see the no-fabrication rule.
+
+**13 turns = 12 turn boundaries = ~12 forced misses** (the 8-turn version would
+have given 7). It also completes the whole game: `ai.py` and `replay.py` and the
+review pass all fall inside 13 turns but outside 8.
 
 ## The experiment
 
 Matched pair, identical task/model/prompts, **only the clock differs**. Both arms
 started from an empty workspace.
 
-| arm | policy | idle between turns | status |
-|---|---|---|---|
-| control | `busy` | none | **DONE** — see below |
-| treatment | `sawtooth` | **420s** (> the 300s TTL) | in flight |
+| arm | policy | turns | idle between turns | status |
+|---|---|---|---|---|
+| control | `busy` | model-decided, cap 16 | none | running |
+| treatment | `sawtooth` | model-decided, cap 16 | **420s** (> the 300s TTL) | queued behind it |
+
+**Read this before comparing the arms.** Because each arm now stops when the model
+says so, the two may run *different numbers of turns*. That makes them no longer a
+controlled pair: session length becomes a second variable alongside the clock. The
+only honest comparison is then **cost per completed task**, which this log already
+argues for. If you need a clean busy-vs-sawtooth cost delta, re-run both with a
+fixed `--turns N` and drop `--until-complete`. The **miss count** stays valid either
+way — it is per turn boundary, not per session.
+
+A completed **8-turn busy run** is preserved separately as
+`results/cache-snake-sonnet-busy-t8.{log,csv}` — a valid shorter datapoint, but
+**not** the control for the 13-turn sawtooth arm. Do not compare across lengths.
 
 **Prediction under test:** control 0 misses, treatment ~7 (one per turn boundary),
 each rewriting the whole prefix at 1.25x instead of reading it at 0.1x. The miss
@@ -44,7 +72,7 @@ is what the matched control licenses.
 
 Lands claims **C11, C18, C20, C21** — currently arithmetic, not measurement.
 
-## Arm 1 result (control, `busy`) — already recorded
+## Earlier 8-turn busy run (kept as a shorter datapoint, NOT the matched control)
 
 8 turns -> **63 requests**, 22.2 min, **suite green**, billed **$2.9624**
 (price card agreement 100.00%).
@@ -79,8 +107,10 @@ Cumulative cost vs turn: linear r2 0.922, **quadratic r2 0.988**.
   instead of eating the miss. Break-even is exactly 12.5 reads per write, so a
   4-minute heartbeat pays for itself for ~50 min of idling. Claims C12/C22, still
   arithmetic. `provider.warm()` already exists for this.
-- **The 13-turn Snake run was aborted** at turn 3 ($0.7288 forfeited) when it
-  projected $25-35 for the pair. The full 13-turn cost curve is still unmeasured.
+- **13 turns is now being measured** after two aborted attempts ($0.7288 + $0.0764
+  forfeited). If it is stopped again, the CSV and summary are written **only on
+  completion** — kill it and you keep only the log lines and the per-request
+  context capture.
 - **Cache outlives the process** — a rerun inside the TTL inherits the previous
   run's warm prefix and its request 0 bills as a read, not a cold write. Observed
   this session. Any cold-start figure must come from a run launched outside the TTL.

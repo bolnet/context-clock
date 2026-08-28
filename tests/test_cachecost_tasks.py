@@ -77,3 +77,29 @@ def test_every_registered_task_is_self_consistent():
         assert task.name == name
         assert task.brief.strip()
         assert task.n_turns == 1 + len(task.followups)
+
+
+def test_snake_declares_a_completion_sentinel():
+    """A self-terminating run needs a signal the harness can check for."""
+    from context_clock.cachecost.tasks import COMPLETION_SENTINEL
+    assert COMPLETION_SENTINEL == "GAME COMPLETE"
+
+
+def test_cycle_prompts_carry_the_completion_clause():
+    """Past the script the model must be told how to say 'nothing left to do'.
+
+    Without it an open-ended run cannot terminate on the model's own judgement
+    and would simply spend until the safety cap.
+    """
+    from context_clock.cachecost.tasks import COMPLETION_SENTINEL
+
+    extended = SNAKE.prompts(SNAKE.n_turns + 1, open_ended=True)
+    assert COMPLETION_SENTINEL in extended[-1]
+
+
+def test_scripted_prompts_never_carry_the_completion_clause():
+    """The scripted turns are real work and must not be short-circuited."""
+    from context_clock.cachecost.tasks import COMPLETION_SENTINEL
+
+    for prompt in SNAKE.prompts(SNAKE.n_turns, open_ended=True):
+        assert COMPLETION_SENTINEL not in prompt

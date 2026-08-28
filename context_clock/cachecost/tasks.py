@@ -37,6 +37,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+#: What the model must reply, alone, when it judges the build genuinely finished.
+#: Checked by the harness to end an open-ended run — see ``Task.prompts``.
+COMPLETION_SENTINEL = "GAME COMPLETE"
+
+#: Appended to cycle prompts in an open-ended run. Only ever attached past the
+#: scripted turns: the script is real work and must not be short-circuited.
+COMPLETION_CLAUSE = (
+    " If the game is genuinely feature-complete, the suite is green, and you "
+    "can find nothing worth adding, reply with exactly " + COMPLETION_SENTINEL +
+    " and call no tools."
+)
+
 SYSTEM_PROMPT = """You are a software engineer working in a sandboxed workspace.
 
 You have four tools: write_file, read_file, list_files and run_tests.
@@ -74,12 +86,20 @@ class Task:
     def n_turns(self) -> int:
         return 1 + len(self.followups)
 
-    def prompts(self, turns: int | None = None) -> tuple[str, ...]:
+    def prompts(
+        self, turns: int | None = None, *, open_ended: bool = False
+    ) -> tuple[str, ...]:
         """The prompt sequence for a run of ``turns`` turns.
 
         Beyond the scripted follow-ups the cycle repeats, numbered so each turn
         is a distinct request rather than a byte-identical repeat — a repeated
         prompt would be answered from cache and stop being real work.
+
+        ``open_ended`` appends the completion clause to the **cycle** prompts
+        only, so the model can end the run itself once it judges the build
+        finished. The scripted turns never carry it: they are the defined
+        workload, and letting the model skip them would make two runs of the
+        same task incomparable.
         """
         scripted = (self.brief, *self.followups)
         if turns is None or turns <= len(scripted):
@@ -91,7 +111,8 @@ class Task:
             )
         out = list(scripted)
         for i in range(turns - len(scripted)):
-            out.append(f"(round {i // len(self.cycle) + 2}) {self.cycle[i % len(self.cycle)]}")
+            extra = f"(round {i // len(self.cycle) + 2}) {self.cycle[i % len(self.cycle)]}"
+            out.append(extra + COMPLETION_CLAUSE if open_ended else extra)
         return tuple(out)
 
 

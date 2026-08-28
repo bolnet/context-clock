@@ -77,6 +77,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--workspace", default=None, help="where the agent builds (default: a fresh dir under results/)")
     parser.add_argument("--tag", default=None, help="name for the output CSV")
     parser.add_argument(
+        "--until-complete", action="store_true",
+        help="let the MODEL end the session: it keeps drawing cycle turns until "
+             "it declares the build finished over a green suite, or --max-turns. "
+             "Two such runs may differ in length, so they are no longer a "
+             "controlled pair — compare them by cost per completed task.",
+    )
+    parser.add_argument(
+        "--max-turns", type=int, default=30,
+        help="safety cap for --until-complete (default: 30)",
+    )
+    parser.add_argument(
         "--capture-context", action="store_true",
         help="dump the exact conversation behind every datapoint to results/<tag>-context/",
     )
@@ -102,7 +113,10 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"task={task.name}  model={args.model}  via {args.provider}  "
         f"policy={args.policy}  ttl={args.ttl}\n"
-        f"{len(task.prompts(args.turns))} user turns · workspace {workspace_path}"
+        + (f"open-ended: the model ends the run, capped at {args.max_turns} turns"
+           if args.until_complete
+           else f"{len(task.prompts(args.turns))} user turns")
+        + f" · workspace {workspace_path}"
         + (f"\nidling {args.idle:.0f}s between turns (~{estimated_minutes:.0f} min of waiting)"
            if estimated_minutes else "")
         + "\n"
@@ -133,6 +147,8 @@ def main(argv: list[str] | None = None) -> int:
         on_record=echo,
         capture_dir=f"results/{tag}-context" if args.capture_context else None,
         turns=args.turns,
+        until_complete=args.until_complete,
+        max_turns=args.max_turns,
     )
 
     print("\n" + summarize(run, args.model))
