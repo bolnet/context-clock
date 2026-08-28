@@ -314,3 +314,72 @@ deadlock (Attestor `:8090` recalls all returned 200 OK; the worker waits on Olla
   rot-until-complete stop logic, per-turn token usage, retrieval memory, NIAH, providers) —
   test-first; provider + end-to-end paths validated by the real runs above.
 - ⚠️ The OpenRouter API key was shared in chat — **rotate it.**
+
+---
+
+## cachecost — prompt-cache economics (2026-08-28)
+
+Real agentic coding session (headless Minesweeper engine, 6 user turns) driven through a
+tool-use loop against **claude-sonnet-5 via OpenRouter**, `--policy busy` (no artificial
+delay). Every request's four-way billing split and **real billed cost** (`usage.cost`)
+recorded. Per-request CSVs in `results/cache-mine-sonnet-busy*.csv` (gitignored).
+
+### Two identical runs — totals vary, structure does not
+
+| Measure | Run 1 | Run 2 | Δ |
+|---|---|---|---|
+| API requests | 33 | 39 | +18.2% |
+| Wall clock | 10.0 min | 12.5 min | +25.0% |
+| **Billed** | **$0.8992** | **$1.1745** | **+30.6%** |
+| Peak context | 52,141 | 67,197 | +28.9% |
+| Cumulative tokens | 855,895 | 1,190,756 | +39.1% |
+| Task completed (suite green) | yes | **no** | — |
+| Price card vs real bill | $0.000000 | $0.000000 | 0 |
+| Read rate recovered from billing | $0.200/Mtok, r²=1.000 | $0.200/Mtok, r²=1.000 | 0 |
+| Output share of bill | 69.0% | 67.9% | −1.1pp |
+| Cache hit rate | 93.4% | 93.9% | +0.5pp |
+| Cache misses | 0 / 33 | 0 / 39 | 0 |
+
+**Finding:** session totals are **not reproducible (±31%)** — the agent is non-deterministic
+and writes different code each run. The **rate structure is reproducible to the digit**.
+Therefore cachecost may publish rates, bucket shares and invariants; it may **not** publish an
+absolute session cost as "the cost of this workload". Run 2 also cost 31% more and delivered
+less (red suite, ended on an output-cap truncation) — cost per *completed* task is the only
+honest unit for comparing sessions.
+
+### Run 1 bucket split (the completed run)
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| output | $0.6204 | **69.0%** | 62,036 | $10.00/Mtok |
+| cache reads | $0.1483 | 16.5% | 741,654 | $0.20/Mtok |
+| cache writes | $0.1303 | 14.5% | 52,139 | $2.50/Mtok |
+| uncached input | $0.0001 | 0.0% | 66 | $2.00/Mtok |
+
+Without caching: $2.2081 (2.5× the bill; **5.69×** on the input side alone). Naive
+context-meter estimate $0.1043, understating **8.6×**. Re-read factor **16.4×**.
+
+Input cost per request by turn (output removed): 1.00× → 1.44× → 2.21× → 3.13× → 3.15× →
+**4.32×** as average context grew 3,143 → 45,911. Same work, more context to re-read.
+
+### Cache mechanism probe (claude-haiku-4-5, 15,204-token prefix)
+
+| | Cold (write) | Warm (read) |
+|---|---|---|
+| Billed | $0.019031 | $0.0015464 |
+| Predicted from price card | $0.019031 | $0.0015464 |
+
+Prefix cost ratio **12.50×**, exact. Also observed: a 2,508-token prefix cached nothing
+(minimum cacheable prefix ~4,096 on Haiku, fails silently); Haiku 4.5's 200k window was
+exhausted at request 61 of a 6-turn session.
+
+### Price card cross-check
+
+`python -m context_clock.cachecost.price_check` — 15 rates across 3 models vs OpenRouter's
+published card, **0 disagreements**.
+
+### Not measured
+
+The 5-minute TTL was **never exercised** — longest gap in either run was 86.2s. Claims C11,
+C18, C20, C21 rest on arithmetic and documentation, not on measurement here. Needs
+`--policy sawtooth --idle 420`.
