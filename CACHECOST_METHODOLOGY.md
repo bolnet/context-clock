@@ -407,9 +407,34 @@ Two design choices worth stating because each reverses an earlier one:
 | control | `busy` | none | same-task baseline |
 | treatment | `sawtooth` | **420s** (> the 300s TTL) | forces expiry at every turn boundary |
 
+Both arms run **`--turns 8`** (the first 8 scripted turns: engine, input queue, scoring,
+render, `from_layout`, wrap mode, `levels.py`, bonus food) rather than the full 13. The
+13-turn version was launched, reached turn 3, and was stopped: measured cumulative cost
+at the turn boundaries was $0.1001 / $0.1998 / $0.5269, which on the quadratic shape
+projects **~$25-35 for the pair** against a $8-18 estimate. Eight turns still gives
+**7 turn boundaries — 7 forced misses** — which is all the categorical 0-vs-N result
+needs, and keeps the arms matched. Recorded because it is a change to the apparatus:
+the 13-turn cost curve was traded away for budget, and $0.7288 of the aborted run was
+forfeited rather than spliced into the new one. **Both arms start from an empty
+workspace**, so neither inherits code the other wrote.
+
 The control is not optional. Comparing a sawtooth Snake run against a busy Minesweeper
 run would confound *task* with *timing*, and the whole design is "same session, different
 clock."
+
+**Observed on the restart — the cache outlives the process.** The relaunched busy arm's
+request 0 billed `write 0 / read 1,315`, where the aborted launch's request 0 had billed
+`write 1,315 / read 0`. Identical command, opposite bucket: the 1,315-token prefix
+(system prompt + first user turn) was still inside its TTL from the run killed minutes
+earlier, so the new process **inherited a warm cache**. The entry is keyed on content,
+not on the session, and nothing in the output flags it.
+
+Two consequences. **A rerun inside the TTL is not a cold start**, so any figure that
+depends on the cold-write bucket must be taken from a run launched well outside it.
+And the two arms here are mildly asymmetric — the sawtooth arm begins ~50 minutes after
+the busy arm ends and therefore cold-starts genuinely. The difference is ~$0.003 and
+changes no conclusion, but the two "request 0" rows are not like for like and are not
+reported as if they were.
 
 **Prediction under test:** the control shows **0 cache misses** (as all three Minesweeper
 runs did); the treatment shows **one forced miss per turn boundary — about 12** — each
