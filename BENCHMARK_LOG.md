@@ -326,25 +326,26 @@ recorded. Per-request CSVs in `results/cache-mine-sonnet-busy*.csv` (gitignored)
 
 ### Two identical runs — totals vary, structure does not
 
-| Measure | Run 1 | Run 2 | Δ |
-|---|---|---|---|
-| API requests | 33 | 39 | +18.2% |
-| Wall clock | 10.0 min | 12.5 min | +25.0% |
-| **Billed** | **$0.8992** | **$1.1745** | **+30.6%** |
-| Peak context | 52,141 | 67,197 | +28.9% |
-| Cumulative tokens | 855,895 | 1,190,756 | +39.1% |
-| Task completed (suite green) | yes | **no** | — |
-| Price card vs real bill | $0.000000 | $0.000000 | 0 |
-| Read rate recovered from billing | $0.200/Mtok, r²=1.000 | $0.200/Mtok, r²=1.000 | 0 |
-| Output share of bill | 69.0% | 67.9% | −1.1pp |
-| Cache hit rate | 93.4% | 93.9% | +0.5pp |
-| Cache misses | 0 / 33 | 0 / 39 | 0 |
+| Measure | Run 1 | Run 2 | Run 3 | spread |
+|---|---|---|---|---|
+| API requests | 33 | 39 | 43 | +30.3% |
+| Wall clock | 10.0 min | 12.5 min | 13.5 min | +35.0% |
+| **Billed** | **$0.8992** | **$1.1745** | **$1.4187** | **+57.8%** |
+| Peak context | 52,141 | 67,197 | 85,423 | +63.8% |
+| Cumulative tokens | 855,895 | 1,190,756 | 1,689,687 | +97.4% |
+| Task completed (suite green) | yes | **no** | yes | — |
+| Price card vs real bill | $0.000000 | $0.000000 | $0.000000 | 0 |
+| Read rate recovered from billing | $0.200/Mtok, r²=1.000 | $0.200/Mtok, r²=1.000 | $0.200/Mtok, r²=1.000 | 0 |
+| Output share of bill | 69.0% | 67.9% | 63.6% | −5.4pp |
+| Cache hit rate | 93.4% | 93.9% | 94.7% | +1.3pp |
+| Cache misses | 0 / 33 | 0 / 39 | 0 / 43 | 0 |
 
-**Finding:** session totals are **not reproducible (±31%)** — the agent is non-deterministic
+**Finding:** session totals are **not reproducible (±58% across three runs)** — the agent is non-deterministic
 and writes different code each run. The **rate structure is reproducible to the digit**.
 Therefore cachecost may publish rates, bucket shares and invariants; it may **not** publish an
 absolute session cost as "the cost of this workload". Run 2 also cost 31% more and delivered
-less (red suite, ended on an output-cap truncation) — cost per *completed* task is the only
+less (red suite, ended on an output-cap truncation); run 3 cost **58% more than run 1**
+for the same six prompts and the same green suite — cost per *completed* task is the only
 honest unit for comparing sessions.
 
 ### Run 1 bucket split (the completed run)
@@ -383,3 +384,67 @@ published card, **0 disagreements**.
 The 5-minute TTL was **never exercised** — longest gap in either run was 86.2s. Claims C11,
 C18, C20, C21 rest on arithmetic and documentation, not on measurement here. Needs
 `--policy sawtooth --idle 420`.
+
+
+### Run 3 — third identical busy run (2026-08-28)
+
+`--task minesweeper --model claude-sonnet-5 --policy busy --ttl 5m --capture-context`
+
+6 user turns -> **43 API requests**, 13.5 min, **suite green**, billed **$1.4187**
+(price card agreement 100.00%, worst-case error $0.000000).
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| output | $0.9022 | **63.6%** | 90,220 | $10.00/Mtok |
+| cache reads | $0.3028 | 21.3% | 1,513,960 | $0.20/Mtok |
+| cache writes | $0.2136 | 15.1% | 85,421 | $2.50/Mtok |
+| uncached input | $0.0002 | 0.0% | 86 | $2.00/Mtok |
+
+Without caching $4.1011 (**2.9×** the bill). Naive context-meter estimate $0.1708,
+understating **8.3×**. Peak context 85,423; cumulative 1,689,687; **re-read factor 19.8×**.
+Cache hit rate 94.7%, **0 misses / 43 requests**. Read rate recovered from billing
+**$0.200/Mtok, r² = 1.000**; breakpoint advancing True; M1 not triggered.
+
+Cumulative cost vs turn: linear fit r² 0.928, **quadratic fit r² 0.983** — the
+super-linear shape, measured.
+
+Three runs of a byte-identical command now span **$0.8992 / $1.1745 / $1.4187 (+57.8%)**
+while every rate and invariant reproduced exactly. The n=3 evidence is stronger than the
+n=2 statement it replaces: **publish rates, shares and invariants; never an absolute
+session cost.**
+
+---
+
+## cachecost — the TTL experiment (snake, in flight 2026-08-28)
+
+The gap in every run above: the **5-minute TTL was never exercised** (longest observed
+gap 86.2s). Closing it needs idle time, and a session long enough to have a curve.
+
+**New workload: `snake`** — 13 scripted turns across four modules (`snake.py`,
+`levels.py`, `ai.py`, `replay.py`): engine, buffered input queue, scoring + speed curve,
+render, `from_layout`, wrap mode, obstacle levels, expiring bonus food, JSON replay
+round-trip, BFS AI, tail-safety AI, 50-state rewind, review pass.
+
+Two deliberate design choices, both recorded because both cut against an earlier one:
+
+* It **is** the talk's own workload, where `minesweeper` was chosen to *not* be. The
+  tradeoff is accepted for **comparability** — a figure here can be set beside theirs.
+  Minesweeper stays the independent check; snake is the like-for-like one.
+* Work is **split across four modules** because `write_file` re-sends whole files, and a
+  module outgrowing `--max-tokens` truncates mid-write and burns the turn — the failure
+  that ended run 2 red. Both snake runs use `--max-tokens 16384`.
+
+**The pair** (identical task, identical model, only the clock differs):
+
+| | policy | idle between turns | purpose |
+|---|---|---|---|
+| control | `busy` | none | same-task baseline |
+| treatment | `sawtooth` | **420s** (> 300s TTL) | forces expiry at every turn boundary |
+
+Prediction under test: the control shows **0 cache misses**; the treatment shows **one
+forced miss per turn boundary (~12)**, each rewriting the whole prefix at 1.25× instead
+of reading it at 0.1×. The miss *count* is categorical and survives the ±58% total-cost
+noise; the cost delta is what the matched control exists to license.
+
+This is the run that moves C11, C18, C20 and C21 off arithmetic and onto measurement.
+Results to be recorded here when it lands — **nothing from it is quoted until then.**

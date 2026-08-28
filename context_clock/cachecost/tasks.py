@@ -16,6 +16,21 @@ The task is a **headless Minesweeper engine**. It earns its place:
 Deliberately *not* the Snake game from the talk being validated: reproducing
 their exact workload would test whether we can copy a session, not whether the
 mechanism holds on a task nobody tuned for it.
+
+``SNAKE`` is the second workload, and it *is* Snake — added on purpose, with
+that tradeoff understood. It exists for two reasons minesweeper cannot serve:
+
+* **Length.** 13 scripted turns across four modules, where minesweeper has 6 in
+  one file. Cost is a function of session length, so measuring the TTL cliff
+  and the cost-vs-turns curve needs a session long enough to have a curve.
+* **Comparability.** It is the talk's own workload, so a figure measured here
+  can be set beside theirs directly. Minesweeper remains the independent
+  check; snake is the like-for-like one. Neither is reported as the other.
+
+The modules are split (``snake.py``, ``levels.py``, ``ai.py``, ``replay.py``)
+because ``write_file`` re-sends whole files: a single module that outgrows
+``--max-tokens`` truncates mid-write and burns the turn, which is how a
+recorded run ended red.
 """
 
 from __future__ import annotations
@@ -136,7 +151,136 @@ Start now: write both files, then run the tests.""",
     ),
 )
 
-TASKS: dict[str, Task] = {MINESWEEPER.name: MINESWEEPER}
+SNAKE = Task(
+    name="snake",
+    brief="""Build a headless Snake game engine in `snake.py`.
+
+This is a multi-module project. Keep each module focused and under ~300 lines:
+you will add `levels.py`, `ai.py` and `replay.py` in later turns, so do not put
+everything in one file.
+
+Requirements for `snake.py`:
+- `Game(width, height, seed)` starts a snake of length 3 in the middle facing
+  east, and places the first food deterministically for a given seed.
+- The snake is an ordered sequence of (x, y) cells, head first.
+- `game.step(direction=None)` advances one tick. `direction` is one of
+  "up"/"down"/"left"/"right" or None to continue straight.
+- Eating food grows the snake by one and spawns new food on a random free
+  cell, chosen deterministically from the seed. Food never spawns on the snake.
+- Running into a wall or into the snake's own body ends the game.
+- A 180-degree reversal is ignored, not fatal.
+- `game.score`, `game.ticks`, `game.state` ("playing" or "over").
+- Invalid directions and non-positive dimensions raise `ValueError`.
+
+Also write `test_snake.py` covering: deterministic food placement for a fixed
+seed, movement in all four directions, growth on eating, the reversal being
+ignored, wall collision, self collision, and the validation errors.
+
+Start now: write both files, then run the tests.""",
+    followups=(
+        "Add a buffered input queue to `snake.py`: `game.enqueue(direction)` "
+        "stores up to 3 pending direction changes, and each tick consumes one. "
+        "This stops fast inputs being dropped when several arrive inside one "
+        "tick. A queued reversal is still ignored when it is consumed. Add "
+        "tests for buffering two turns across two ticks, the queue capping at "
+        "3, and a queued reversal being skipped. Run the tests.",
+
+        "Add scoring and a speed curve to `snake.py`: each food is worth 10 "
+        "points plus a bonus for eating it in fewer than 20 ticks since the "
+        "last one, and `game.tick_interval` starts at 200ms and drops 5% per "
+        "food to a floor of 60ms. Add tests for the base score, the speed "
+        "bonus, the interval decay, and the floor being respected. Run the "
+        "tests.",
+
+        "Add `game.render()` to `snake.py`, returning the board as a "
+        "multi-line string: '#' for wall border, 'O' for the head, 'o' for "
+        "body, '*' for food and ' ' for empty. Add tests for a fresh board, a "
+        "board after several moves, and a finished game. Run the tests.",
+
+        "Add `Game.from_layout(rows, seed=0)` to `snake.py`, building a game "
+        "from a list of strings using the same characters `render()` emits, so "
+        "tests can pin an exact position instead of stepping a seeded game "
+        "into place. The snake's body order is given by a separate `body` "
+        "argument listing its cells head first. Rewrite at least three "
+        "existing tests to use it. Run the tests.",
+
+        "Add wrap-around mode to `snake.py`: `Game(..., wrap=True)` makes the "
+        "snake re-enter the opposite edge instead of dying on a wall. Self "
+        "collision still ends the game, and `render()` draws no wall border in "
+        "wrap mode. Add tests for wrapping on all four edges, self collision "
+        "still being fatal while wrapped, and the default staying wrap=False. "
+        "Run the tests.",
+
+        "Create `levels.py`: a `Level` holding a set of obstacle cells, "
+        "`Level.from_layout(rows)` reading 'X' as an obstacle, and at least "
+        "three built-in levels of increasing difficulty. Wire it into "
+        "`snake.py` via `Game(..., level=None)`: obstacles are fatal on "
+        "contact, food never spawns on one, and `render()` draws them as 'X'. "
+        "Add tests in `test_levels.py` for the layout parser, each built-in "
+        "level being non-empty and inside its bounds, fatal contact, and food "
+        "avoiding obstacles. Run the tests.",
+
+        "Add bonus food to `snake.py`: after every 5 normal foods a bonus "
+        "food appears on a free cell, is worth 50 points, and disappears if "
+        "not eaten within 30 ticks. Only one bonus may exist at a time and "
+        "`render()` draws it as '$'. Add tests for the spawn cadence, the "
+        "score, the expiry, and that a bonus never overlaps the snake, the "
+        "normal food or an obstacle. Run the tests.",
+
+        "Create `replay.py`: `record(game)` captures the seed, dimensions, "
+        "options and the direction consumed on every tick; `to_json(recording)` "
+        "and `from_json(text)` round-trip it; `replay(recording)` re-runs it "
+        "and returns the finished game. Add `test_replay.py` proving a "
+        "recorded game replays to an identical final snake, score and tick "
+        "count, that the JSON round-trips exactly, and that a recording with a "
+        "corrupted tick list raises a clear error. Run the tests.",
+
+        "Create `ai.py`: `next_direction(game)` picking a move by breadth-first "
+        "search from the head to the food around the snake, obstacles and "
+        "walls, with a deterministic tiebreak so the same position always "
+        "gives the same move. If no path exists, move to the neighbouring free "
+        "cell with the most reachable space. Add `test_ai.py` proving it takes "
+        "the shortest path on an open board, routes around an obstacle, never "
+        "returns a fatal or reversing move, and survives at least 100 ticks on "
+        "a seeded 10x10 board. Run the tests.",
+
+        "Add a safety layer to `ai.py`: before committing to the BFS move, "
+        "check that after taking it the snake can still reach its own tail; if "
+        "not, prefer a move that keeps the tail reachable, and fall back to "
+        "following the tail when no food route is safe. Add tests for a "
+        "position where the greedy food move traps the snake and the safe move "
+        "does not, and that the AI now survives at least 400 ticks on a seeded "
+        "8x8 board. Run the tests.",
+
+        "Add rewind to `snake.py`: the game keeps an internal stack of the "
+        "last 50 states and `game.undo()` restores the previous one exactly — "
+        "snake, food, bonus, score, ticks, tick_interval, queue and state — "
+        "returning False when there is nothing to undo. Prove exactness by "
+        "stepping, undoing and comparing `render()` plus every public "
+        "attribute. Add tests for a single undo, 50 chained undos, the cap "
+        "discarding the oldest, and undoing past a game-over. Run the tests.",
+
+        "Review all four modules. Add docstrings to every public class and "
+        "method, make sure every public method validates its arguments and "
+        "raises ValueError with a clear message, and add any test you think is "
+        "missing for an edge case — especially interactions between features "
+        "(wrap plus obstacles, bonus food plus undo, AI on a wrapped board). "
+        "Run the tests one final time.",
+    ),
+    cycle=(
+        "Pick the weakest area of test coverage across the four modules and "
+        "add at least three tests for it that do not duplicate an existing "
+        "test. Run the tests.",
+        "Find a method that could be clearer or more efficient, refactor it, "
+        "and confirm the tests still pass. Run the tests.",
+        "Add one new capability a real Snake front-end would need and is not "
+        "there yet, with tests. Run the tests.",
+        "Look for an unhandled edge case in the existing code, fix it, and add "
+        "a regression test. Run the tests.",
+    ),
+)
+
+TASKS: dict[str, Task] = {t.name: t for t in (MINESWEEPER, SNAKE)}
 
 
 def get_task(name: str) -> Task:
