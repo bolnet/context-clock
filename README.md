@@ -92,13 +92,34 @@ Each run prints the per-turn arc and writes `results/<tag>.csv` + a chart. API r
 | `--cadence` | probe every N turns |
 | `--probe-max-tokens` | answer budget per probe (raise for reasoning models) |
 
+## Where the money goes — the cache-cost ledger
+
+Growing context does not just cost tokens, it costs *differently* depending on whether the prompt
+cache is warm. Cached prefixes bill at **0.1×** the input rate; the moment a 5-minute entry lapses,
+the same prefix is rewritten at **1.25×** — a **12.5× jump on identical work**. `cachecost` prices
+that cliff and validates 30 claims from a talk on Claude Code session economics:
+
+```bash
+python -m context_clock.cachecost.verify --scenarios   # the ledger, re-derived from the price card
+```
+
+Findings and evidence live in **[`CACHE_CLAIMS.md`](CACHE_CLAIMS.md)**. Two that matter:
+
+- The heartbeat break-even is **12.5 cache reads** — ~50 minutes of keep-warm. Past that, take the
+  miss. Between ~30 and ~60 minutes idle, a 1-hour TTL beats both.
+- A miss is not only a clock event. A cache breakpoint walks back at most **20 content blocks**, so
+  one turn appending more than 20 — routine in an agentic loop — misses with *zero* elapsed time,
+  at the same 12.5× penalty. No timing rule fixes that one.
+
 ## Reproduce
 
 ```bash
-pip install -e . && pytest          # 99 tests, deterministic
+pip install -r requirements.txt && pytest   # 186 tests, deterministic, no network
 ```
 
-`BENCHMARK_LOG.md` is the committed source of truth — every run, every number, with CSV pointers.
+`BENCHMARK_LOG.md` is the committed source of truth — every measured run, every number, with CSV
+pointers. `CACHE_CLAIMS.md` is its counterpart for the cache-cost work: every verdict re-derives
+from the published price card at print time, and nothing there is presented as measured.
 
 ## The fix
 
