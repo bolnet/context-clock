@@ -110,6 +110,72 @@ def read_rate_agreement(run: AgentRun, model: str) -> float:
     return 1.0 - abs(measured - published) / published
 
 
+def breakpoint_advances(run: AgentRun) -> bool:
+    """Whether the cache breakpoint moved forward request over request.
+
+    The direct test for the frozen-breakpoint bug, and it does not need a
+    regression: a healthy session's cache read grows every request, because the
+    prefix it reads back is everything sent last time. A frozen breakpoint
+    leaves the read pinned within a turn, so the same value repeats.
+
+    Inferring this from a weak regression instead was wrong — a real session
+    has genuine scatter from variable write sizes, which is not a bug.
+    """
+    reads = [r.cache_read for r in run.records if r.cache_read > 0]
+    if len(reads) < 3:
+        return True  # too short to judge; do not cry wolf
+    repeats = sum(1 for a, b in zip(reads, reads[1:]) if a == b)
+    return repeats <= len(reads) // 4
+
+
+def read_rate_from_billing(run: AgentRun, model: str) -> Fit:
+    """Recover the cache-read rate from billed cost alone.
+
+    The exact relation is
+    ``cost = read*r_read + write*r_write + uncached*r_in + output*r_out``,
+    so subtracting the three known terms and fitting the remainder against
+    ``cache_read`` isolates the read rate. Measured on a real session: slope
+    $0.200/Mtok at r-squared 1.000 on Sonnet.
+
+    This is the honest form of the C30 check. Fitting against *context* instead
+    leaves the write term in the residual, and since writes vary by two orders
+    of magnitude at 12.5x the read rate, that scatter is real — not evidence of
+    a broken harness.
+    """
+    warm = warm_requests(run.records)
+    if len(warm) < 2:
+        raise ValueError("not enough warm requests with a billed cost to fit")
+    card = price_card(model)
+    residual = [
+        (r.cost or 0.0)
+        - (r.output_tokens * card.output_per_mtok
+           + r.cache_creation * card.cache_write_5m_per_mtok
+           + r.input_tokens * card.input_per_mtok) / _PER_MTOK
+        for r in warm
+    ]
+    return least_squares([float(r.cache_read) for r in warm], residual)
+
+
+def model_reproduces_billing(run: AgentRun, model: str) -> float:
+    """Largest USD discrepancy between the price card and the provider's bill.
+
+    Zero means the four-bucket model accounts for every cent actually charged.
+    """
+    card = price_card(model)
+    worst = 0.0
+    for r in run.records:
+        if r.cost is None:
+            continue
+        predicted = (
+            r.cache_read * card.cache_read_per_mtok
+            + r.cache_creation * card.cache_write_5m_per_mtok
+            + r.input_tokens * card.input_per_mtok
+            + r.output_tokens * card.output_per_mtok
+        ) / _PER_MTOK
+        worst = max(worst, abs(predicted - r.cost))
+    return worst
+
+
 def cumulative_by_turn(run: AgentRun) -> list[tuple[int, float]]:
     """Running billed cost at the end of each turn — the curve C30 predicts."""
     out: dict[int, float] = {}
@@ -155,16 +221,28 @@ def summarize_scaling(run: AgentRun, model: str) -> str:
     ]
     if fit.r_squared < 0.8:
         lines.append(
-            "    WARNING: weak fit. In a healthy session input cost is tightly linear "
-            "in context. A low r-squared means the relationship is piecewise — the "
-            "signature of a cache breakpoint that is not advancing, where the read "
-            "stays pinned within a turn and jumps at turn boundaries. Measured 0.07 on "
-            "a run with exactly that bug. Fix the harness before reading these numbers."
+            "    (scatter is expected: writes vary by orders of magnitude at 12.5x the "
+            "read rate, so context alone does not determine cost)"
         )
-    if read_rate_agreement(run, model) < 0.5:
+
+    # The exact check, controlling for the write term.
+    exact = read_rate_from_billing(run, model)
+    lines += [
+        "",
+        "  READ RATE RECOVERED FROM BILLING (controlling for writes and output)",
+        f"    slope                 ${exact.slope * _PER_MTOK:>8.3f}/Mtok",
+        f"    published             ${published:>8.3f}/Mtok",
+        f"    r-squared             {exact.r_squared:>9.3f}",
+        "",
+        "  SELF-CHECKS",
+        f"    breakpoint advancing  {str(breakpoint_advances(run)):>9}",
+        f"    price card vs bill    ${model_reproduces_billing(run, model):>8.6f} worst-case error",
+    ]
+    if not breakpoint_advances(run):
         lines.append(
-            "    WARNING: the slope is far from the cache-read rate — the session was "
-            "not being served from cache at the rate it should have been."
+            "    WARNING: the cache read is not advancing — the breakpoint is frozen and "
+            "the growing tail is billing at full price. Fix the harness before reading "
+            "anything else in this run."
         )
 
     curve = quadratic_beats_linear(run)

@@ -174,3 +174,60 @@ class TestCumulativeCurve:
 
     def test_too_few_turns_returns_none_rather_than_a_false_verdict(self):
         assert quadratic_beats_linear(_healthy_run(8)) is None
+
+
+class TestDirectSelfChecks:
+    """Breakpoint health is checked directly, not inferred from a weak fit."""
+
+    def test_healthy_session_breakpoint_advances(self):
+        from context_clock.cachecost.analysis import breakpoint_advances
+
+        assert breakpoint_advances(_healthy_run(20)) is True
+
+    def test_frozen_breakpoint_is_detected_directly(self):
+        from context_clock.cachecost.analysis import breakpoint_advances
+
+        run = AgentRun(task="t", model=SONNET, policy="busy")
+        for i in range(20):
+            run.records.append(RequestRecord(
+                i, i // 5, 0, 20_000, i * 100, 0, 1.0, 5.0, 3, "tool_use",
+                context_tokens=20_000 + i * 100, cost=0.01))
+        assert breakpoint_advances(run) is False
+
+    def test_short_run_does_not_cry_wolf(self):
+        from context_clock.cachecost.analysis import breakpoint_advances
+
+        assert breakpoint_advances(_healthy_run(2)) is True
+
+    def test_real_scatter_no_longer_triggers_a_false_warning(self):
+        # A live Sonnet session fitted r-squared 0.616 against context with a
+        # perfectly healthy breakpoint — variable write sizes, not a bug.
+        from context_clock.cachecost.analysis import summarize_scaling
+
+        run = _healthy_run(20)
+        card = price_card(SONNET)
+        for i, r in enumerate(run.records):
+            write = 60 if i % 3 else 4_400
+            delta = (write - r.cache_creation) * card.cache_write_5m_per_mtok / 1e6
+            run.records[i] = RequestRecord(
+                **{**r.__dict__, "cache_creation": write, "cost": (r.cost or 0) + delta})
+        assert "WARNING" not in summarize_scaling(run, SONNET)
+
+    def test_read_rate_recovered_exactly_when_writes_are_controlled(self):
+        from context_clock.cachecost.analysis import read_rate_from_billing
+
+        fit = read_rate_from_billing(_healthy_run(20), SONNET)
+        assert fit.slope * 1e6 == pytest.approx(0.20, abs=0.001)
+        assert fit.r_squared == pytest.approx(1.0, abs=0.001)
+
+    def test_price_card_reproduces_a_consistent_bill_exactly(self):
+        from context_clock.cachecost.analysis import model_reproduces_billing
+
+        assert model_reproduces_billing(_healthy_run(20), SONNET) < 1e-12
+
+    def test_discrepancy_is_surfaced_when_the_bill_disagrees(self):
+        from context_clock.cachecost.analysis import model_reproduces_billing
+
+        run = _healthy_run(5)
+        run.records[2] = RequestRecord(**{**run.records[2].__dict__, "cost": 99.0})
+        assert model_reproduces_billing(run, SONNET) > 90
