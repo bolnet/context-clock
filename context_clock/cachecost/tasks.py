@@ -40,15 +40,44 @@ Rules:
 
 @dataclass(frozen=True)
 class Task:
-    """A benchmark workload: an opening brief plus follow-up turns."""
+    """A benchmark workload: an opening brief, scripted follow-ups, then a cycle.
+
+    Cost in an agent session is a function of session *length*, so a fixed
+    turn count measures one point on a curve. ``cycle`` lets a run extend past
+    the scripted turns with further genuine increments, so cost can be plotted
+    against turns the way context-clock plots tokens against turns.
+    """
 
     name: str
     brief: str
     followups: tuple[str, ...]
+    #: Repeatable increments used once ``followups`` is exhausted. Each still
+    #: asks for real work, so a longer run is a longer session and not idling.
+    cycle: tuple[str, ...] = ()
 
     @property
     def n_turns(self) -> int:
         return 1 + len(self.followups)
+
+    def prompts(self, turns: int | None = None) -> tuple[str, ...]:
+        """The prompt sequence for a run of ``turns`` turns.
+
+        Beyond the scripted follow-ups the cycle repeats, numbered so each turn
+        is a distinct request rather than a byte-identical repeat — a repeated
+        prompt would be answered from cache and stop being real work.
+        """
+        scripted = (self.brief, *self.followups)
+        if turns is None or turns <= len(scripted):
+            return scripted[: turns or len(scripted)]
+        if not self.cycle:
+            raise ValueError(
+                f"task {self.name!r} has no cycle, so it cannot extend past "
+                f"{len(scripted)} turns"
+            )
+        out = list(scripted)
+        for i in range(turns - len(scripted)):
+            out.append(f"(round {i // len(self.cycle) + 2}) {self.cycle[i % len(self.cycle)]}")
+        return tuple(out)
 
 
 MINESWEEPER = Task(
@@ -94,6 +123,16 @@ Start now: write both files, then run the tests.""",
         "Review the whole module. Add docstrings, make sure every public method "
         "validates its coordinates, and add any test you think is missing for "
         "an edge case. Run the tests one final time.",
+    ),
+    cycle=(
+        "Pick the weakest area of test coverage and add at least three tests "
+        "for it that do not duplicate an existing test. Run the tests.",
+        "Find a method that could be clearer or more efficient, refactor it, "
+        "and confirm the tests still pass. Run the tests.",
+        "Add one new query method to Board that a UI would need and is not "
+        "there yet, with tests. Run the tests.",
+        "Look for an unhandled edge case in the existing code, fix it, and add "
+        "a regression test. Run the tests.",
     ),
 )
 

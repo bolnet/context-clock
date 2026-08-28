@@ -91,12 +91,13 @@ def run_session(
     cache_ttl: str = "5m",
     on_record: Callable[[RequestRecord], None] | None = None,
     capture_dir: str | Path | None = None,
+    turns: int | None = None,
 ) -> AgentRun:
     """Drive ``task`` to completion, recording the cache split of every request."""
     run = AgentRun(task=task.name, model=provider.model, policy=policy_name)
     system = [{"type": "text", "text": SYSTEM_PROMPT}]
     messages: list[dict] = []
-    prompts = (task.brief, *task.followups)
+    prompts = task.prompts(turns)
 
     session_start = time.monotonic()
     last_request_start: float | None = None

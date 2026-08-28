@@ -27,6 +27,7 @@ from .bench import (
     summarize,
     write_records_csv,
 )
+from .analysis import summarize_scaling
 from .pricing import PRICES
 from .tasks import get_task
 from .tools import Workspace
@@ -55,6 +56,11 @@ def main(argv: list[str] | None = None) -> int:
         description="Run a real coding task and measure its prompt-cache economics.",
     )
     parser.add_argument("--task", default="minesweeper")
+    parser.add_argument(
+        "--turns", type=int, default=None,
+        help="session length; extends past the scripted turns with further "
+             "increments so cost can be plotted against turns (default: scripted)",
+    )
     parser.add_argument(
         "--provider", default="openrouter", choices=["openrouter", "anthropic"],
         help="openrouter reports real billed cost and derives cache writes from it; "
@@ -96,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"task={task.name}  model={args.model}  via {args.provider}  "
         f"policy={args.policy}  ttl={args.ttl}\n"
-        f"{task.n_turns} user turns · workspace {workspace_path}"
+        f"{len(task.prompts(args.turns))} user turns · workspace {workspace_path}"
         + (f"\nidling {args.idle:.0f}s between turns (~{estimated_minutes:.0f} min of waiting)"
            if estimated_minutes else "")
         + "\n"
@@ -126,9 +132,11 @@ def main(argv: list[str] | None = None) -> int:
         cache_ttl=args.ttl,
         on_record=echo,
         capture_dir=f"results/{tag}-context" if args.capture_context else None,
+        turns=args.turns,
     )
 
     print("\n" + summarize(run, args.model))
+    print("\n" + summarize_scaling(run, args.model))
 
     csv_path = write_records_csv(run, f"results/{tag}.csv")
     print(f"\n  per-request rows -> {csv_path}")
