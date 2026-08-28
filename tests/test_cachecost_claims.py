@@ -99,3 +99,49 @@ class TestVerifyCli:
         out = capsys.readouterr().out
         assert "Derived scenarios" in out
         assert "not measured" in out  # derived figures must be labelled
+
+
+class TestRestartBeatsCarrying:
+    """C33: killing a long session and re-paying the preamble vs carrying it."""
+
+    def test_restart_wins_once_the_conversation_exceeds_the_preamble(self):
+        from context_clock.cachecost.claims import restart_beats_carrying
+
+        assert restart_beats_carrying(
+            conversation_tokens=275_000, preamble_tokens=38_000, model="claude-sonnet-5"
+        ) is True
+
+    def test_carrying_wins_while_the_conversation_is_still_small(self):
+        from context_clock.cachecost.claims import restart_beats_carrying
+
+        assert restart_beats_carrying(
+            conversation_tokens=20_000, preamble_tokens=38_000, model="claude-sonnet-5"
+        ) is False
+
+    def test_rejects_negative_inputs(self):
+        from context_clock.cachecost.claims import restart_beats_carrying
+
+        with pytest.raises(ValueError, match="non-negative"):
+            restart_beats_carrying(
+                conversation_tokens=-1, preamble_tokens=1, model="claude-sonnet-5"
+            )
+
+
+class TestTranscriptCoverage:
+    """The ledger must account for every cost claim in the source talk."""
+
+    def test_covers_every_numbered_claim_without_gaps(self):
+        numbered = sorted(
+            int(c.id[1:]) for c in CLAIMS if c.id.startswith("C") and c.id[1:].isdigit()
+        )
+        assert numbered == list(range(1, len(numbered) + 1)), "gap in the C-series"
+
+    def test_records_claims_it_cannot_check_rather_than_dropping_them(self):
+        # Silently omitting an unverifiable cost claim would overstate coverage.
+        assert any(c.verdict == UNVERIFIABLE for c in CLAIMS)
+        assert all(c.evidence.strip() for c in CLAIMS if c.verdict == UNVERIFIABLE)
+
+    def test_every_speaker_topic_area_is_represented(self):
+        topics = " ".join(c.topic.lower() for c in CLAIMS)
+        for area in ("price", "cache", "ttl", "miss", "context", "sub-agent", "projection"):
+            assert area in topics, f"no claim covers {area}"

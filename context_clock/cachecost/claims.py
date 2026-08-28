@@ -389,6 +389,154 @@ CLAIMS: tuple[Claim, ...] = (
         "the cached preamble, so it lowers rather than raises the per-request floor.",
     ),
     Claim(
+        id="C29",
+        topic="Unbounded fan-out",
+        quote="Your six prompts can easily turn into 31 API requests. They can also turn "
+        "into 3,000 API requests. Sometimes it can go on for 20 hours from one prompt.",
+        verdict=CONFIRMED,
+        evidence="Nothing bounds the loop but the task and the autonomy granted. This is "
+        "why prompt count is a useless cost proxy and request count is the unit that "
+        "matters — the benchmark records both, and its own runs show the ratio moving.",
+    ),
+    Claim(
+        id="C30",
+        topic="Per-request cost is linear",
+        quote="You settle into this linear payment for each request — about 6 cents — and "
+        "it just keeps increasing slowly and slowly.",
+        verdict=CONFIRMED,
+        evidence="Exactly right, and it is the bridge to what context-clock already "
+        "measures. A warm request bills its whole prefix at the read rate, so per-request "
+        "cost is linear in context; context grows by roughly a constant per turn; summing "
+        "a linear series over n turns is **quadratic cumulative spend**. Caching lowers "
+        "the constant by 12.5x. It does not change the exponent — that is what retrieved "
+        "memory does.",
+    ),
+    Claim(
+        id="C31",
+        topic="Partial cache survival",
+        quote="We're still going to have a cache read, because the initial layer of the "
+        "system prompt and the project context might live on, but our conversation "
+        "suddenly becomes uncached.",
+        verdict=CONFIRMED,
+        evidence="With multiple breakpoints, an expiry does not have to be all-or-nothing: "
+        "an earlier entry can still be read while a later one is rewritten. So a miss "
+        "shows up as reads collapsing to the size of the surviving prefix, not to zero — "
+        "which is why the benchmark records read and write per request rather than a "
+        "hit/miss flag.",
+    ),
+    Claim(
+        id="C32",
+        topic="Write-heavy start, read-heavy tail",
+        quote="Initially we have a bunch of cache writes because it's making calls and "
+        "creating files, and then eventually it verifies the game works and doesn't have "
+        "to put that back into its cache.",
+        verdict=CONFIRMED,
+        evidence="Directly observable in a real session: early turns append large tool "
+        "results (files written, tests run) so writes dominate; later turns append little "
+        "and read a large prefix, so reads dominate. The benchmark's per-request CSV shows "
+        "the crossover.",
+    ),
+    Claim(
+        id="C33",
+        topic="Restart vs carry",
+        quote="Depending on how big the conversation becomes after, let's say, two hours, "
+        "it might make sense to just kill that and start a new one. You pay the 38k "
+        "penalty again, but it might be cheaper than repaying whatever accumulated.",
+        verdict=CONFIRMED,
+        evidence="The break-even is exact: restarting costs one preamble rewrite, carrying "
+        "on costs a rewrite of the accumulated prefix on the next miss. Restart wins once "
+        "the conversation exceeds the preamble — i.e. almost immediately, if you are going "
+        "to miss anyway. See ``restart_beats_carrying``.",
+        check=lambda: (
+            miss_penalty(38_000, "claude-sonnet-5") / miss_penalty(275_000, "claude-sonnet-5"),
+            0.138,
+        ),
+        tolerance=0.05,
+    ),
+    Claim(
+        id="C34",
+        topic="Small sub-agent contexts",
+        quote="By keeping those conversations fairly small you avoid the cache read "
+        "penalty when you get into a 500k window where you end up paying a bunch of money "
+        "just for cache reads.",
+        verdict=REFINED,
+        evidence="The economics are right — read cost is linear in prefix size, so ten "
+        "50k sub-agents read far less than one 500k agent — but 'penalty' is the wrong "
+        "word for a cache read, which is the cheap path at 0.1x. The real trade is against "
+        "C25: each sub-agent re-pays its own preamble, so fan-out wins only when each "
+        "sub-task is substantially larger than the preamble it costs to start.",
+    ),
+    Claim(
+        id="C35",
+        topic="Blocked main agent",
+        quote="You keep your main agent occupied by just this synthetic 'hey, are you "
+        "alive' until the sub agents are done — otherwise the main agent will blow past "
+        "the cache window.",
+        verdict=CONFIRMED,
+        evidence="A main agent waiting on sub-agents issues no requests, so its entry ages "
+        "out exactly like an idle human's. Same mechanism as C11, different cause, and it "
+        "is the one people do not anticipate because the session looks busy.",
+    ),
+    Claim(
+        id="C36",
+        topic="Keep-alive duration",
+        quote="It basically keeps it alive for 20 to 25 minutes ... a very small cache "
+        "read every four minutes.",
+        verdict=REFINED,
+        evidence="The mechanism works indefinitely, not for 20-25 minutes — a read "
+        "refreshes the timer every time (C12). The 20-25 minute figure is the sensible "
+        "*budget*, not a limit, and it sits just inside the 12.5-read break-even from C22 "
+        "(~50 minutes). The tool is right; the stated reason is not.",
+    ),
+    Claim(
+        id="C37",
+        topic="Periodic loop economics",
+        quote="If I have a loop that runs every 30 minutes for six hours, does it make "
+        "sense to keep the cache warm through the 20 minutes of downtime?",
+        verdict=REFINED,
+        evidence="Answerable exactly, and the talk left it at 'some math here'. Bridging a "
+        "25-minute gap costs ~6 refresh reads (0.6x a prefix) against a miss at 1.25x, so "
+        "heartbeating wins per gap. Over 12 gaps in six hours it stays ahead — but a "
+        "1-hour TTL beats both (C22), and the conversation should be reset between "
+        "firings anyway (C33) rather than carried for six hours.",
+        check=lambda: (reads_per_write("5m"), 12.5),
+    ),
+    Claim(
+        id="C38",
+        topic="Cheaper model for watching",
+        quote="If you're watching the deployment, see if you can try a cheaper model than "
+        "Opus, like Sonnet — then the costs are just a lot cheaper.",
+        verdict=CONFIRMED,
+        evidence="Sonnet 5 is 2.5x cheaper than Opus 5 in every bucket, and the ratio holds "
+        "for cache reads and writes because the multipliers are structural. For a watching "
+        "loop, which is nearly all cache reads, the saving is the full 2.5x.",
+        check=lambda: (
+            price_card("claude-opus-5").cache_read_per_mtok
+            / price_card("claude-sonnet-5").cache_read_per_mtok,
+            2.5,
+        ),
+    ),
+    Claim(
+        id="C39",
+        topic="Opus 5 context appetite",
+        quote="A lot of my conversations are getting into like 500k plus tokens, which is "
+        "not super normal for me.",
+        verdict=UNVERIFIABLE,
+        evidence="One engineer's impression of one model over an unstated period, with no "
+        "baseline. Recorded because it drove advice in the room, not because it is "
+        "evidence. Worth noting that if true it multiplies every miss cost in C20/C21.",
+    ),
+    Claim(
+        id="C40",
+        topic="Non-Anthropic pricing",
+        quote="Recently I started using flash 3.7 more from cursor ... it's 0.75 per "
+        "million and I think the caching is at least half an hour.",
+        verdict=UNVERIFIABLE,
+        evidence="Out of scope: not an Anthropic model, and this benchmark only prices "
+        "models it holds a verified card for. Recorded so the ledger is complete rather "
+        "than silently dropping a cost claim it cannot check.",
+    ),
+    Claim(
         id="M1",
         topic="20-block lookback",
         quote="(not covered in the talk)",
@@ -411,6 +559,21 @@ CLAIMS: tuple[Claim, ...] = (
         "invalidation and C18-style expiry look identical in the bill.",
     ),
 )
+
+
+def restart_beats_carrying(
+    *, conversation_tokens: int, preamble_tokens: int, model: str, ttl: str = "5m"
+) -> bool:
+    """Whether killing the session and re-paying the preamble beats carrying it (C33).
+
+    Both sides are a cache write; only the size differs. Restarting wins as soon
+    as the accumulated conversation exceeds the preamble it costs to rebuild.
+    """
+    if conversation_tokens < 0 or preamble_tokens < 0:
+        raise ValueError("token counts must be non-negative")
+    return miss_penalty(preamble_tokens, model, ttl) < miss_penalty(
+        conversation_tokens, model, ttl
+    )
 
 
 def annual_miss_overpay(

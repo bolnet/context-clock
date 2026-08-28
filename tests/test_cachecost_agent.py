@@ -212,14 +212,22 @@ class TestPricingAMeasuredRun:
         provider = FakeProvider([_text()])
         run = run_session(ONE_TURN, provider, Workspace(tmp_path))
         text = summarize(run, "claude-sonnet-5")
+        # Cost leads; context is supporting detail, not the headline.
+        assert text.index("COST") < text.index("CONTEXT")
         assert "billed" in text and "without caching" in text
+        assert "cache writes" in text and "cache reads" in text
+        assert "peak context" in text and "cumulative" in text
 
     def test_writes_a_csv_of_every_request(self, tmp_path):
         provider = FakeProvider([[_tool_use("list_files", {})], _text()])
         run = run_session(ONE_TURN, provider, Workspace(tmp_path))
         path = write_records_csv(run, tmp_path / "out" / "rows.csv")
         rows = path.read_text().splitlines()
-        assert rows[0].startswith("index,turn,gap_s")
+        header = rows[0].split(",")
+        assert header[:3] == ["index", "turn", "elapsed_s"]
+        # Context is captured per datapoint, not only cost.
+        for column in ("context_tokens", "cumulative_tokens", "n_blocks", "cost_usd"):
+            assert column in header
         assert len(rows) == run.n_requests + 1
 
 
@@ -252,3 +260,107 @@ class TestLookbackDetection:
             RequestRecord(1, 0, 100, 5_500, 0, 10, 0.1, 2.0, 2, "end_turn"),
         ])
         assert find_lookback_misses(run) == []
+
+
+class TestContextCapture:
+    """Every datapoint carries the context it was measured on, not just the cost."""
+
+    def _run(self, tmp_path, **kwargs):
+        provider = FakeProvider([[_tool_use("list_files", {})], _text()])
+        return run_session(ONE_TURN, provider, Workspace(tmp_path), **kwargs)
+
+    def test_records_the_live_context_size(self, tmp_path):
+        run = self._run(tmp_path)
+        # The fake caches 1000 then reads it back plus 100 new.
+        assert run.records[0].context_tokens == 1_000
+        assert run.records[1].context_tokens == 1_100
+
+    def test_cumulative_tokens_grow_monotonically(self, tmp_path):
+        run = self._run(tmp_path)
+        totals = [r.cumulative_tokens for r in run.records]
+        assert totals == sorted(totals)
+        assert totals[-1] > totals[0]
+
+    def test_cumulative_exceeds_peak_context(self, tmp_path):
+        # The whole point: the bill sums every request, the meter shows one.
+        run = self._run(tmp_path)
+        assert run.cumulative_tokens > run.peak_context
+
+    def test_records_conversation_shape(self, tmp_path):
+        run = self._run(tmp_path)
+        assert run.records[0].n_messages == 1        # just the user brief
+        assert run.records[1].n_messages == 3        # + assistant + tool_result
+        assert run.records[1].n_blocks >= 3
+        assert run.records[1].history_chars > 0
+
+    def test_records_elapsed_from_session_start(self, tmp_path):
+        run = self._run(tmp_path)
+        assert run.records[0].elapsed >= 0
+        assert run.records[1].elapsed >= run.records[0].elapsed
+
+    def test_unknown_cost_is_none_not_zero(self, tmp_path):
+        # The fake reports no cost; conflating that with $0 would understate.
+        run = self._run(tmp_path)
+        assert all(r.cost is None for r in run.records)
+        assert run.measured_cost is None
+
+    def test_measured_cost_sums_when_every_request_reports_one(self, tmp_path):
+        from context_clock.cachecost.agent import AgentRun
+
+        run = AgentRun(task="t", model="m", policy="busy")
+        run.records = [
+            RequestRecord(0, 0, 100, 0, 0, 5, 0.1, 0.0, 2, "end_turn", cost=0.01),
+            RequestRecord(1, 0, 10, 100, 0, 5, 0.1, 1.0, 2, "end_turn", cost=0.002),
+        ]
+        assert run.measured_cost == pytest.approx(0.012)
+
+    def test_capture_dir_writes_the_exact_context_per_request(self, tmp_path):
+        import json as _json
+
+        capture = tmp_path / "ctx"
+        run = self._run(tmp_path, capture_dir=capture)
+        files = sorted(capture.glob("req-*.json"))
+        assert len(files) == run.n_requests
+        payload = _json.loads(files[1].read_text())
+        assert payload["index"] == 1
+        assert payload["context_tokens"] == run.records[1].context_tokens
+        assert payload["messages"], "the conversation itself must be recoverable"
+
+    def test_no_capture_dir_writes_nothing(self, tmp_path):
+        self._run(tmp_path)
+        assert not (tmp_path / "ctx").exists()
+
+
+class TestCaptureIsolation:
+    """A re-run must not splice its rows with a previous session's."""
+
+    def test_stale_rows_from_a_previous_run_are_cleared(self, tmp_path):
+        capture = tmp_path / "ctx"
+        capture.mkdir()
+        stale = capture / "req-0099.json"
+        stale.write_text('{"index": 99, "cumulative_tokens": 999999}')
+
+        provider = FakeProvider([_text()])
+        run_session(ONE_TURN, provider, Workspace(tmp_path), capture_dir=capture)
+
+        assert not stale.exists()
+        assert sorted(p.name for p in capture.glob("req-*.json")) == ["req-0000.json"]
+
+    def test_captured_indices_are_contiguous_from_zero(self, tmp_path):
+        capture = tmp_path / "ctx"
+        provider = FakeProvider([[_tool_use("list_files", {})], _text()])
+        run = run_session(ONE_TURN, provider, Workspace(tmp_path), capture_dir=capture)
+        indices = sorted(int(p.stem.split("-")[1]) for p in capture.glob("req-*.json"))
+        assert indices == list(range(run.n_requests))
+
+    def test_cumulative_tokens_never_decrease(self, tmp_path):
+        import json as _json
+
+        capture = tmp_path / "ctx"
+        provider = FakeProvider([[_tool_use("list_files", {})], _text()] * 3)
+        run_session(ONE_TURN, provider, Workspace(tmp_path), capture_dir=capture)
+        totals = [
+            _json.loads(p.read_text())["cumulative_tokens"]
+            for p in sorted(capture.glob("req-*.json"))
+        ]
+        assert totals == sorted(totals)

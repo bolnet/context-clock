@@ -61,6 +61,11 @@ class CachedCompletion:
     output_tokens: int = 0
     #: Wall-clock seconds this request took, request start to response.
     latency: float = 0.0
+    #: Real billed USD, when the provider reports one (OpenRouter does).
+    #: ``None`` means unknown, never $0 — the meter must not conflate them.
+    cost: float | None = None
+    #: False when the write count was inferred rather than reported.
+    write_measured: bool = True
 
     @property
     def prompt_tokens(self) -> int:
@@ -238,7 +243,14 @@ def _cache_control(ttl: str) -> dict:
 
 @dataclass
 class RequestRecord:
-    """One row of the benchmark: what a single API request cost and why."""
+    """One row of the benchmark: what a single API request cost, and on how much context.
+
+    Cost without context is half the picture. context-clock's existing result is
+    that the prompt the model must read grows O(n^2) across a session; this row
+    carries that growth (``context_tokens``, ``cumulative_tokens``) alongside
+    what it billed, so a single run yields both curves and they can be plotted
+    against each other.
+    """
 
     index: int
     turn: int
@@ -252,6 +264,23 @@ class RequestRecord:
     blocks_added: int
     stop_reason: str
     tool_calls: tuple[str, ...] = field(default_factory=tuple)
+
+    # --- context, captured per datapoint -------------------------------------
+    #: Every token in the conversation the model had to read this request —
+    #: the live context size, whatever bucket it billed in.
+    context_tokens: int = 0
+    #: Every token ever spent this session, prompt + completion. The O(n^2) curve.
+    cumulative_tokens: int = 0
+    #: Real billed USD for this request, when the provider reports one.
+    cost: float | None = None
+    #: Running billed USD across the session.
+    cumulative_cost: float = 0.0
+    #: Shape of the conversation behind this request.
+    n_messages: int = 0
+    n_blocks: int = 0
+    history_chars: int = 0
+    #: Seconds since the session started — the x-axis for the timing policies.
+    elapsed: float = 0.0
 
     @property
     def prompt_tokens(self) -> int:

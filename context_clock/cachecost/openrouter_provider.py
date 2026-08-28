@@ -230,17 +230,61 @@ def derive_writes(
 
 
 def parse_usage(body: dict, model: str, ttl: str = "5m") -> UsageSplit:
-    """Read an OpenRouter usage block into the four buckets."""
+    """Read an OpenRouter usage block into the four buckets.
+
+    Measured against the live endpoint (2026-08-28): OpenRouter reports
+    ``cache_write_tokens`` alongside ``cached_tokens``, so the write count is
+    read directly rather than inferred. ``prompt_tokens`` is the sum of all
+    three input buckets.
+
+    ``derive_writes`` remains the fallback for a response that omits the field,
+    and doubles as a cross-check — see ``writes_disagree_by``.
+    """
     usage = body.get("usage") or {}
     details = usage.get("prompt_tokens_details") or {}
-    return derive_writes(
+    prompt_tokens = usage.get("prompt_tokens") or 0
+    cached = details.get("cached_tokens") or 0
+    output = usage.get("completion_tokens") or 0
+    cost = usage.get("cost")
+
+    reported_write = details.get("cache_write_tokens")
+    if reported_write is None:
+        return derive_writes(
+            prompt_tokens=prompt_tokens, cached_tokens=cached,
+            output_tokens=output, cost=cost, model=model, ttl=ttl,
+        )
+
+    write = int(reported_write)
+    return UsageSplit(
+        cache_read=cached,
+        cache_write=write,
+        uncached_input=max(prompt_tokens - cached - write, 0),
+        output=output,
+        cost=cost,
+        derived_write=False,
+    )
+
+
+def writes_disagree_by(body: dict, model: str, ttl: str = "5m") -> int | None:
+    """Gap between the reported write count and the one implied by the bill.
+
+    Two independent paths to the same number: the provider's own field, and
+    the algebra over the billed total. A non-zero gap means one of them is
+    wrong, and a benchmark that publishes cost figures should notice rather
+    than average them. ``None`` when either path is unavailable.
+    """
+    usage = body.get("usage") or {}
+    details = usage.get("prompt_tokens_details") or {}
+    reported = details.get("cache_write_tokens")
+    if reported is None or usage.get("cost") is None:
+        return None
+    derived = derive_writes(
         prompt_tokens=usage.get("prompt_tokens") or 0,
         cached_tokens=details.get("cached_tokens") or 0,
         output_tokens=usage.get("completion_tokens") or 0,
-        cost=usage.get("cost"),
-        model=model,
-        ttl=ttl,
+        cost=usage.get("cost"), model=model, ttl=ttl,
     )
+    return int(reported) - derived.cache_write
 
 
 class OpenRouterCacheProvider:
@@ -315,6 +359,8 @@ class OpenRouterCacheProvider:
             input_tokens=split.uncached_input,
             output_tokens=split.output,
             latency=latency,
+            cost=split.cost,
+            write_measured=not split.derived_write,
         )
 
     def warm(self, messages, *, system=None, tools=None, cache_ttl="5m") -> CachedCompletion:

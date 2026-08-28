@@ -232,3 +232,54 @@ class TestProviderConstruction:
     def test_maps_to_the_namespaced_slug(self):
         p = OpenRouterCacheProvider(model=SONNET, api_key="sk-or-test")
         assert p.slug == "anthropic/claude-sonnet-5"
+
+
+class TestReportedWriteCount:
+    """OpenRouter reports cache_write_tokens directly — verified live 2026-08-28."""
+
+    def _body(self, *, prompt, cached, write, output, cost):
+        return {"usage": {
+            "prompt_tokens": prompt, "completion_tokens": output, "cost": cost,
+            "prompt_tokens_details": {"cached_tokens": cached, "cache_write_tokens": write},
+        }}
+
+    def test_prefers_the_reported_write_over_the_derivation(self):
+        body = self._body(prompt=15_210, cached=0, write=15_204, output=4,
+                          cost=_cost("claude-haiku-4-5", write=15_204, uncached=6, output=4))
+        split = parse_usage(body, "claude-haiku-4-5")
+        assert split.cache_write == 15_204
+        assert split.derived_write is False  # measured, not inferred
+
+    def test_uncached_is_the_remainder_of_prompt_tokens(self):
+        # prompt_tokens is the sum of all three input buckets.
+        body = self._body(prompt=15_210, cached=15_204, write=0, output=4, cost=0.0015464)
+        assert parse_usage(body, "claude-haiku-4-5").uncached_input == 6
+
+    def test_falls_back_to_derivation_when_the_field_is_absent(self):
+        body = {"usage": {
+            "prompt_tokens": 10_000, "completion_tokens": 0,
+            "cost": _cost(SONNET, write=10_000),
+            "prompt_tokens_details": {"cached_tokens": 0},
+        }}
+        split = parse_usage(body, SONNET)
+        assert split.cache_write == 10_000
+        assert split.derived_write is True
+
+    def test_the_two_paths_agree_on_the_live_cold_response(self):
+        from context_clock.cachecost.openrouter_provider import writes_disagree_by
+
+        body = self._body(prompt=15_210, cached=0, write=15_204, output=4, cost=0.019031)
+        assert writes_disagree_by(body, "claude-haiku-4-5") == 0
+
+    def test_the_two_paths_agree_on_the_live_warm_response(self):
+        from context_clock.cachecost.openrouter_provider import writes_disagree_by
+
+        body = self._body(prompt=15_210, cached=15_204, write=0, output=4, cost=0.0015464)
+        assert writes_disagree_by(body, "claude-haiku-4-5") == 0
+
+    def test_disagreement_is_surfaced_not_averaged(self):
+        from context_clock.cachecost.openrouter_provider import writes_disagree_by
+
+        body = self._body(prompt=10_000, cached=0, write=10_000, output=0,
+                          cost=_cost(SONNET, write=4_000, uncached=6_000))
+        assert writes_disagree_by(body, SONNET) != 0

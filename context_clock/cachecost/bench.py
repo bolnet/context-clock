@@ -93,47 +93,96 @@ def write_records_csv(run: AgentRun, path: str | Path) -> Path:
         writer = csv.writer(handle)
         writer.writerow(
             [
-                "index", "turn", "gap_s", "latency_s", "blocks_added",
+                "index", "turn", "elapsed_s", "gap_s", "latency_s",
+                # context, per datapoint
+                "context_tokens", "cumulative_tokens", "n_messages", "n_blocks",
+                "blocks_added", "history_chars",
+                # billing split
                 "cache_write", "cache_read", "uncached_input", "output",
-                "prompt_tokens", "stop_reason", "tool_calls",
+                "cost_usd", "cumulative_cost_usd",
+                "stop_reason", "tool_calls",
             ]
         )
         for r in run.records:
             writer.writerow(
                 [
-                    r.index, r.turn, f"{r.gap:.2f}", f"{r.latency:.2f}", r.blocks_added,
+                    r.index, r.turn, f"{r.elapsed:.2f}", f"{r.gap:.2f}", f"{r.latency:.2f}",
+                    r.context_tokens, r.cumulative_tokens, r.n_messages, r.n_blocks,
+                    r.blocks_added, r.history_chars,
                     r.cache_creation, r.cache_read, r.input_tokens, r.output_tokens,
-                    r.prompt_tokens, r.stop_reason, "|".join(r.tool_calls),
+                    "" if r.cost is None else f"{r.cost:.8f}", f"{r.cumulative_cost:.8f}",
+                    r.stop_reason, "|".join(r.tool_calls),
                 ]
             )
     return target
 
 
 def summarize(run: AgentRun, model: str) -> str:
-    """A human-readable account of where this session's money went."""
+    """A human-readable account of where this session's money went.
+
+    Cost leads, because that is what this benchmark exists to measure. The
+    token buckets are shown as dollars first and tokens second, since the
+    buckets differ 12.5x in price and a token count alone hides that. Context
+    is reported last as supporting detail — it explains the shape of the bill,
+    it is not the headline.
+    """
     session = to_session_usage(run, model)
+    card = session.card
+    billed = run.measured_cost
+
+    def money(cost: float, tokens: int, label: str, rate: float) -> str:
+        share = cost / session.cost if session.cost else 0.0
+        return (
+            f"    {label:<16} ${cost:>9.4f}  {share:>5.1%}   "
+            f"{tokens:>12,} tok @ ${rate:>5.2f}/Mtok"
+        )
+
+    write_cost = session.cache_write_tokens * card.cache_write_5m_per_mtok / 1e6
+    read_cost = session.cache_read_tokens * card.cache_read_per_mtok / 1e6
+    uncached_cost = session.uncached_input_tokens * card.input_per_mtok / 1e6
+    output_cost = session.output_tokens * card.output_per_mtok / 1e6
+
     lines = [
         f"task={run.task}  model={model}  policy={run.policy}",
         f"  {run.n_turns} user turns -> {run.n_requests} API requests"
-        f"   ({run.wall_clock / 60:.1f} min wall clock)",
-        f"  tests pass: {run.tests_passed}",
+        f"   ({run.wall_clock / 60:.1f} min wall clock)   tests pass: {run.tests_passed}",
         "",
-        f"  cache writes    {session.cache_write_tokens:>12,} tok",
-        f"  cache reads     {session.cache_read_tokens:>12,} tok",
-        f"  uncached input  {session.uncached_input_tokens:>12,} tok",
-        f"  output          {session.output_tokens:>12,} tok",
-        f"  final context   {session.final_context_tokens:>12,} tok",
-        "",
-        f"  cache hit rate  {session.cache_hit_rate:>11.1%}",
-        f"  cache misses    {session.n_cache_misses:>11} / {session.n_requests}",
-        "",
-        f"  billed          ${session.cost:>11.4f}",
-        f"  without caching ${session.uncached_cost:>11.4f}"
-        f"   ({session.cache_savings_multiple:.1f}x)",
-        f"  naive estimate  ${session.naive_cost:>11.4f}"
-        f"   (understates {session.naive_underestimate_multiple:.1f}x)",
+        "  COST",
+        (f"    billed              ${billed:>9.4f}   measured, from the provider"
+         if billed is not None else
+         "    billed                    n/a   (provider reported no cost)"),
+        f"    priced              ${session.cost:>9.4f}   our price card",
     ]
-    return "\n".join(lines)
+    if billed is not None and session.cost:
+        drift = abs(billed - session.cost) / session.cost
+        lines.append(f"    agreement           {1 - drift:>9.2%}   measured vs priced")
+    lines += [
+        "",
+        f"    without caching     ${session.uncached_cost:>9.4f}   "
+        f"caching saved {session.cache_savings_multiple:.1f}x "
+        f"({1 - session.cost / session.uncached_cost:.0%})",
+        f"    naive estimate      ${session.naive_cost:>9.4f}   "
+        f"understates the bill {session.naive_underestimate_multiple:.1f}x",
+        "",
+        "  WHERE IT WENT",
+        money(write_cost, session.cache_write_tokens, "cache writes", card.cache_write_5m_per_mtok),
+        money(read_cost, session.cache_read_tokens, "cache reads", card.cache_read_per_mtok),
+        money(uncached_cost, session.uncached_input_tokens, "uncached input", card.input_per_mtok),
+        money(output_cost, session.output_tokens, "output", card.output_per_mtok),
+        "",
+        f"    cache hit rate      {session.cache_hit_rate:>9.1%}   of input tokens",
+        f"    cache misses        {session.n_cache_misses:>9} / {session.n_requests} requests",
+        f"    cost per request    ${session.cost / session.n_requests:>9.4f}   average"
+        if session.n_requests else "",
+        "",
+        "  CONTEXT (supporting detail)",
+        f"    peak context        {run.peak_context:>9,} tok   the context-meter number",
+        f"    cumulative          {run.cumulative_tokens:>9,} tok   every token ever read or written",
+        f"    re-read factor      {run.cumulative_tokens / run.peak_context:>9.1f}x   "
+        "how many times the context was paid for"
+        if run.peak_context else "",
+    ]
+    return "\n".join(line for line in lines if line != "")
 
 
 def find_lookback_misses(run: AgentRun, ttl_seconds: float = TTL_5M_SECONDS) -> list[RequestRecord]:

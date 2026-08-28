@@ -70,6 +70,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--max-tokens", type=int, default=8192)
     parser.add_argument("--workspace", default=None, help="where the agent builds (default: a fresh dir under results/)")
     parser.add_argument("--tag", default=None, help="name for the output CSV")
+    parser.add_argument(
+        "--capture-context", action="store_true",
+        help="dump the exact conversation behind every datapoint to results/<tag>-context/",
+    )
     args = parser.parse_args(argv)
 
     task = get_task(args.task)
@@ -101,11 +105,14 @@ def main(argv: list[str] | None = None) -> int:
     def echo(record) -> None:
         marker = "MISS" if record.cache_read == 0 and record.index > 0 else "hit "
         print(
-            f"  req {record.index:>3}  turn {record.turn}  {marker}"
-            f"  write {record.cache_creation:>7,}  read {record.cache_read:>8,}"
-            f"  out {record.output_tokens:>5,}  gap {record.gap:>6.1f}s"
-            f"  blocks {record.blocks_added:>3}"
-            f"  {'|'.join(record.tool_calls) or record.stop_reason}",
+            f"  req {record.index:>3} t{record.turn} {marker}"
+            f" ctx {record.context_tokens:>7,}"
+            f" cum {record.cumulative_tokens:>8,}"
+            f" | wr {record.cache_creation:>6,} rd {record.cache_read:>7,}"
+            f" out {record.output_tokens:>5,}"
+            f" | ${(record.cost or 0):.5f} cum ${record.cumulative_cost:.4f}"
+            f" | gap {record.gap:>5.1f}s blk {record.blocks_added:>2}"
+            f" {'|'.join(record.tool_calls) or record.stop_reason}",
             flush=True,
         )
 
@@ -118,12 +125,15 @@ def main(argv: list[str] | None = None) -> int:
         max_tokens=args.max_tokens,
         cache_ttl=args.ttl,
         on_record=echo,
+        capture_dir=f"results/{tag}-context" if args.capture_context else None,
     )
 
     print("\n" + summarize(run, args.model))
 
     csv_path = write_records_csv(run, f"results/{tag}.csv")
     print(f"\n  per-request rows -> {csv_path}")
+    if args.capture_context:
+        print(f"  per-request context -> results/{tag}-context/")
 
     lookback = find_lookback_misses(run)
     if lookback:
