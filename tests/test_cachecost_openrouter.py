@@ -341,3 +341,57 @@ class TestBreakpointAdvances:
         assert short[-1]["role"] == "tool"
         assert longer[-1]["role"] == "assistant"  # marker moved with the tail
         assert "cache_control" in longer[-1]["content"][-1]
+
+
+class TestTransportRetries:
+    """The bounded-retry path must cover every transient transport fault.
+
+    A long agentic run makes hundreds of requests over hours; a single
+    unhandled socket fault ends the session and forfeits the run. Both arms of
+    the snake TTL experiment died this way on `TimeoutError`, which is an
+    OSError but *not* a `urllib.error.URLError`, so it escaped the retry loop.
+    """
+
+    def _provider(self, monkeypatch, failures, *, exc):
+        """A provider whose transport raises ``exc`` for the first N calls."""
+        calls = {"n": 0}
+
+        def fake_urlopen(request, timeout=None):
+            calls["n"] += 1
+            if calls["n"] <= failures:
+                raise exc
+            raise AssertionError("should not reach a real response in this test")
+
+        monkeypatch.setattr(
+            "urllib.request.urlopen", fake_urlopen, raising=True
+        )
+        monkeypatch.setattr("time.sleep", lambda _s: None)
+        provider = OpenRouterCacheProvider(
+            model="claude-sonnet-5", api_key="k", retries=3, backoff=0.0
+        )
+        return provider, calls
+
+    def test_a_read_timeout_is_retried_not_fatal(self, monkeypatch):
+        """The exact fault that killed both snake runs."""
+        provider, calls = self._provider(
+            monkeypatch, failures=99, exc=TimeoutError("The read operation timed out")
+        )
+        with pytest.raises(RuntimeError, match="unreachable after 3 attempts"):
+            provider._post(b"{}")
+        assert calls["n"] == 3, "timeout must be retried, not raised on the first try"
+
+    def test_a_dropped_connection_is_retried(self, monkeypatch):
+        provider, calls = self._provider(
+            monkeypatch, failures=99, exc=ConnectionResetError("peer reset")
+        )
+        with pytest.raises(RuntimeError, match="unreachable"):
+            provider._post(b"{}")
+        assert calls["n"] == 3
+
+    def test_the_final_failure_names_the_underlying_cause(self, monkeypatch):
+        """A run that dies after its retries must say what actually broke."""
+        provider, _ = self._provider(
+            monkeypatch, failures=99, exc=TimeoutError("The read operation timed out")
+        )
+        with pytest.raises(RuntimeError, match="timed out"):
+            provider._post(b"{}")

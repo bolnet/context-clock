@@ -420,6 +420,15 @@ class OpenRouterCacheProvider:
                 last = exc
             except urllib.error.URLError as exc:
                 last = exc
+            except OSError as exc:
+                # Read timeouts, resets and other socket faults. TimeoutError is
+                # an OSError but NOT a URLError, so without this arm it escapes
+                # the retry loop and kills the run outright — which is exactly
+                # how both arms of the snake TTL experiment were lost hours in.
+                last = exc
             if attempt < self.retries - 1:
                 time.sleep(self.backoff * (attempt + 1))
-        raise RuntimeError(f"OpenRouter unreachable after {self.retries} attempts: {last}")
+        raise RuntimeError(
+            f"OpenRouter unreachable after {self.retries} attempts: "
+            f"{type(last).__name__}: {last}"
+        )
