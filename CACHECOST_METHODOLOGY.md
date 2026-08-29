@@ -289,6 +289,20 @@ indistinguishable from ordinary expiry in the bill, and it is a cause the talk d
 mention. Any agent loop with retries has this exposure: a flaky minute costs a full
 prefix rewrite.
 
+**Observed three times, always on a large prefix.** The sawtooth arm reproduced it twice
+more, at 178,974 and 288,899 tokens of context (the busy arm's was 160,769). All three
+struck requests carrying **150k+ tokens**, which is the compounding part worth stating
+plainly: the larger the conversation, the likelier the request is to time out *and* the
+more a rewrite costs when the retry lands past the TTL. In the sawtooth run one retry
+storm cost **$0.6645** of pure waste — comparable to the deliberate 7-minute pauses the
+experiment was built to price.
+
+Because it is indistinguishable from clock expiry in the bill, a miss ledger must
+separate the two by gap: gaps over the TTL are idle expiry; a miss inside the TTL whose
+*following* request shows a multi-hundred-second gap is a retry storm. Reporting them
+together overstates the idle penalty — in the sawtooth arm, 33.1% of the bill went to
+misses but only **24.9%** was attributable to idling.
+
 **It also exposes a bug in this instrument.** ``gap`` is ``request_start -
 last_request_start``, so it reports the distance to the *first attempt*, not to the
 request that actually reached the server. Whenever a retry happens the field
