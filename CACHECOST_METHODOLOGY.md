@@ -261,6 +261,47 @@ it produced a hit rate. This is the whole argument for the self-checks in §9.
 
 ---
 
+## 8a. A third cause of the cliff: the retry storm
+
+Measured 2026-08-29 in the **busy** arm of the snake pair — an arm that by construction
+should never miss, and whose three predecessors never did.
+
+```
+req 64 t9 hit  ctx 154,361 | wr    280  rd 154,079 | $0.08574 | gap    2.7s
+req 65 t9 MISS ctx 160,769 | wr 160,767 rd       0 | $0.48578 | gap   61.3s
+req 66 t9 hit  ctx 162,980 | wr  2,211  rd 160,767 | $0.05465 | gap 1945.3s
+```
+
+**$0.48578 for one request** — the most expensive single request measured in this
+project, and it bought nothing: the entire 160,767-token prefix rewritten at $2.50/Mtok
+instead of read at $0.20.
+
+The recorded gap of 61.3s exonerates the clock. It should not. Request 66's gap of
+**1945.3s** is measured from request 65's *start*, so request 65 itself took ~32 minutes
+— two 900s read timeouts, 9s of backoff, then a successful ~136s attempt, summing to
+1945.3s exactly. The first attempt left at T; the entry written by request 64 expired at
+**T+239**; the attempt that finally landed reached the server at ~T+1809, 26 minutes
+after the prefix had died.
+
+**The TTL expired inside our own retry.** The cliff was not caused by an idle human or a
+long generation, but by the client retrying a request that had already gone quiet. It is
+indistinguishable from ordinary expiry in the bill, and it is a cause the talk does not
+mention. Any agent loop with retries has this exposure: a flaky minute costs a full
+prefix rewrite.
+
+**It also exposes a bug in this instrument.** ``gap`` is ``request_start -
+last_request_start``, so it reports the distance to the *first attempt*, not to the
+request that actually reached the server. Whenever a retry happens the field
+under-reports the true clock distance — and ``find_lookback_misses()`` uses
+``gap < 0.8 x TTL`` to certify a miss as "clock-safe" and therefore attributable to the
+20-block lookback (M1). A retried request can therefore be **falsely attributed to M1**.
+It did not fire here (the preceding turn appended 2 blocks, not >20), but the hole is
+real. The fix — record attempts per request, and time the gap from the successful send —
+was deliberately **not** applied mid-experiment, to avoid splitting one run across two
+versions of the harness.
+
+---
+
 ## 9. The self-checks — how the harness catches itself lying
 
 Five independent checks, all runnable:
