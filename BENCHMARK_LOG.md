@@ -448,3 +448,53 @@ noise; the cost delta is what the matched control exists to license.
 
 This is the run that moves C11, C18, C20 and C21 off arithmetic and onto measurement.
 Results to be recorded here when it lands — **nothing from it is quoted until then.**
+
+
+### Snake, open-ended, `busy` control — 14 turns (2026-08-29)
+
+`--task snake --until-complete --max-turns 16 --policy busy --ttl 5m --max-tokens 16384`
+
+14 user turns -> **127 API requests**, 80.3 min, **suite green**, billed **$8.6371**
+(price card agreement 100.00%, worst-case error $0.000000). Built 3,312 lines across
+`snake.py`, `levels.py`, `ai.py`, `replay.py` + four test modules.
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| **cache reads** | **$4.1711** | **48.3%** | 20,855,446 | $0.20/Mtok |
+| output | $3.1701 | 36.7% | 317,006 | $10.00/Mtok |
+| cache writes | $1.2954 | 15.0% | 518,175 | $2.50/Mtok |
+| uncached input | $0.0005 | 0.0% | 254 | $2.00/Mtok |
+
+Without caching $45.9178 (**5.3x**, 81% saved). Naive context-meter estimate $0.7276,
+understating **11.9x**. Peak context 363,818; cumulative 21,690,881; **re-read factor
+59.6x**. Hit rate 97.6%. Read rate recovered from billing **$0.200/Mtok, r2 = 1.000**;
+breakpoint advancing True. Cumulative cost vs turn: linear r2 0.872, **quadratic r2 0.974**.
+
+#### The output-share crossover — measured across four session lengths
+
+| workload | turns | output share | cache-read share |
+|---|---|---|---|
+| minesweeper | 6 | **63.6%** | 21.3% |
+| snake | 8 | 51.4% | 32.2% |
+| snake | 14 | **36.7%** | **48.3%** |
+
+**"Output dominates an agent bill" is a short-session artifact.** As a session lengthens
+the bill shifts monotonically toward **re-reading the conversation**: by 14 turns, cache
+reads are the largest single bucket. The naive-estimate error grows the same way
+(8.3x at 6 turns -> 11.9x at 14), because it prices one context rather than the tens of
+millions of tokens actually re-read.
+
+#### One miss, and it was not the clock
+
+**1 miss / 127 requests**, in an arm that by construction should never miss. A request
+timed out twice and retried, landing 1809s after its first attempt — 26 minutes after the
+prefix it needed had expired. One request, **$0.48578**, 160,767 tokens rewritten at 1.25x
+instead of read at 0.1x. Full analysis in `CACHECOST_METHODOLOGY.md` §8a, including the
+instrument bug it exposed (`gap` is timed from the first attempt, so it under-reports the
+true clock distance whenever a retry happens, and can falsely certify a miss as M1).
+
+#### Not exercised
+
+`--until-complete` did **not** fire: `GAME COMPLETE` appears zero times. The run ended at
+14 turns because turn 13 exhausted `MAX_ROUNDS_PER_TURN`, i.e. the safety path, not the
+model's own judgement. The flag remains unproven against a live model.
