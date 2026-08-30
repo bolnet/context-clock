@@ -8,3 +8,6 @@ venv/
 *.jpeg
 *.jpg
 .playwright-mcp/
+
+# local run traces
+logs/

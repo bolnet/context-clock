@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="What context costs an AI agent as it grows, what a prompt cache saves, and what happens when it lapses — measured across six live coding sessions.">
+<meta name="color-scheme" content="light">
+<meta property="og:title" content="Agent Token Economics — context-clock">
+<meta property="og:description" content="Six instrumented agent coding sessions, billed by a live API.">
+<meta property="og:type" content="article">
+<style>*{margin:0}img{max-width:100%}</style>
+<title>Agent Token Economics</title>
+</head>
+<body>
+
+<style>
+:root{
+  --bg:#f5f5f7; --surface:#ffffff; --hover:#fbfbfd;
+  --text:#1d1d1f; --text-body:#424245; --text-2:#6e6e73; --text-3:#86868b; --text-4:#aeaeb2;
+  --faint:#d2d2d7; --hairline:rgba(0,0,0,0.07);
+  --accent:#0071e3; --accent-link:#0066cc; --indigo:#5e5ce6;
+  --heat:#ff6b00; --heat-bg:rgba(255,107,0,0.10); --live:#30d158;
+  --track:#e8e8ed;
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Text','SF Pro Display','Helvetica Neue','PingFang SC',sans-serif;
+  --mono:ui-monospace,'SF Mono',Menlo,monospace;
+  --r-pill:999px; --r-thumb:12px; --r-card:18px; --r-panel:22px; --r-hero:26px;
+  --sh-card:0 1px 2px rgba(0,0,0,0.04),0 8px 24px rgba(0,0,0,0.05);
+  --sh-panel:0 1px 3px rgba(0,0,0,0.05),0 14px 40px rgba(0,0,0,0.05);
+  --pad:clamp(22px,4.5vw,64px);
+  --t-display:clamp(38px,6.4vw,80px);
+  --t-title:clamp(25px,3.6vw,46px);
+  --t-lead:clamp(15px,1.7vw,22px);
+  --t-body:clamp(13px,1.3vw,17px);
+  --t-cap:clamp(11px,1.05vw,13px);
+  --t-stat:clamp(24px,3.3vw,44px);
+}
+@media (max-height:720px){
+  :root{--pad:clamp(16px,3vw,32px);--t-display:clamp(30px,5vw,50px);
+        --t-title:clamp(21px,3vw,32px);--t-stat:clamp(20px,2.6vw,32px);--t-lead:clamp(14px,1.5vw,17px)}
+}
+*{box-sizing:border-box}
+html,body{height:100%;overflow-x:hidden;margin:0}
+html{scroll-snap-type:y mandatory;scroll-behavior:smooth}
+body{background:var(--bg);color:var(--text);font-family:var(--font);
+     font-size:var(--t-body);line-height:1.5;-webkit-font-smoothing:antialiased}
+
+.slide{width:100vw;height:100vh;height:100dvh;overflow:hidden;scroll-snap-align:start;
+       display:flex;flex-direction:column;justify-content:center;position:relative}
+.inner{width:100%;max-width:1080px;margin:0 auto;padding:var(--pad);
+       display:flex;flex-direction:column;gap:clamp(12px,2vw,26px);max-height:100%}
+.inner.read{max-width:860px}
+
+/* ── type ── */
+.eyebrow{font-size:var(--t-cap);font-weight:600;letter-spacing:.06em;text-transform:uppercase;
+         color:var(--text-3);display:flex;gap:10px;align-items:center}
+.eyebrow .idx{color:var(--text-4);font-variant-numeric:tabular-nums}
+h1{font-size:var(--t-display);font-weight:600;letter-spacing:-.032em;line-height:1.04;
+   margin:0;text-wrap:balance}
+h2{font-size:var(--t-title);font-weight:600;letter-spacing:-.024em;line-height:1.1;
+   margin:0;text-wrap:balance}
+.lead{font-size:var(--t-lead);line-height:1.5;color:var(--text-2);max-width:64ch;margin:0;
+      letter-spacing:-.01em}
+.lead b{color:var(--text);font-weight:600}
+p{margin:0;max-width:70ch;color:var(--text-body)}
+.cap{font-size:var(--t-cap);color:var(--text-3);max-width:78ch}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+
+/* ── unified panel: siblings share one surface, hairlines between ── */
+.panel{background:var(--surface);border-radius:var(--r-panel);box-shadow:var(--sh-panel);
+       overflow:hidden}
+.rows{display:flex;flex-direction:column}
+.row{display:flex;align-items:baseline;justify-content:space-between;gap:20px;
+     padding:clamp(9px,1.5vw,15px) clamp(16px,2.4vw,28px);border-top:1px solid var(--hairline)}
+.row:first-child{border-top:none}
+.row dt{color:var(--text-2);flex:1}
+.row dd{margin:0;font-variant-numeric:tabular-nums;font-weight:500;white-space:nowrap}
+.row dd.heat{color:var(--heat)}
+.row dd.accent{color:var(--accent)}
+
+/* ── stat cluster ── */
+.stats{display:grid;gap:clamp(10px,1.5vw,18px)}
+.s2{grid-template-columns:repeat(2,1fr)}
+.s3{grid-template-columns:repeat(3,1fr)}
+.s4{grid-template-columns:repeat(4,1fr)}
+.stat{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-card);
+      padding:clamp(13px,2vw,24px);display:flex;flex-direction:column;gap:5px}
+.stat .k{font-size:var(--t-cap);color:var(--text-3);letter-spacing:.02em;line-height:1.35}
+.stat .v{font-size:var(--t-stat);font-weight:600;letter-spacing:-.028em;
+         font-variant-numeric:tabular-nums;line-height:1.02}
+.stat .v.heat{color:var(--heat)}
+.stat .v.accent{color:var(--accent)}
+.stat .f{font-size:var(--t-cap);color:var(--text-3);line-height:1.4}
+
+/* ── table ── */
+.tbl{background:var(--surface);border-radius:var(--r-panel);box-shadow:var(--sh-panel);
+     overflow:auto;max-height:62vh}
+table{border-collapse:collapse;width:100%;font-size:clamp(11.5px,1.15vw,15px)}
+th,td{padding:clamp(7px,1.05vw,12px) clamp(11px,1.5vw,20px);text-align:right;
+      border-top:1px solid var(--hairline);white-space:nowrap;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+thead th{font-size:var(--t-cap);font-weight:600;color:var(--text-3);letter-spacing:.04em;
+         text-transform:uppercase;border-top:none;position:sticky;top:0;background:var(--surface);
+         box-shadow:0 1px 0 var(--hairline)}
+tbody tr:hover{background:var(--hover)}
+td.heat{color:var(--heat);font-weight:500}
+td.accent{color:var(--accent)}
+td.dim{color:var(--text-3)}
+tfoot td{font-weight:600;background:var(--hover)}
+
+/* ── pills ── */
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:var(--t-cap);font-weight:500;
+      padding:3px 11px;border-radius:var(--r-pill);background:var(--bg);color:var(--text-2);
+      white-space:nowrap}
+.pill.on{background:rgba(48,209,88,.13);color:#248a3d}
+.pill.hot{background:var(--heat-bg);color:#c25200}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+
+/* ── code ── */
+.code{background:var(--surface);border-radius:var(--r-card);box-shadow:var(--sh-card);
+      padding:clamp(13px,2vw,22px);font-family:var(--mono);
+      font-size:clamp(10.5px,1.05vw,14px);line-height:1.85;overflow-x:auto;white-space:pre;
+      color:var(--text-body);font-variant-numeric:tabular-nums}
+.code b{color:var(--heat);font-weight:600}
+.code i{color:var(--accent);font-style:normal}
+.code s{color:var(--text-4);text-decoration:none}
+
+/* ── list ── */
+ul.pts{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:clamp(7px,1.2vw,14px)}
+ul.pts li{display:flex;gap:12px;line-height:1.5;color:var(--text-body)}
+ul.pts li::before{content:"";flex:none;width:5px;height:5px;margin-top:.62em;border-radius:50%;
+                  background:var(--faint)}
+ul.pts li b{color:var(--text);font-weight:600}
+
+/* ── charts ── */
+svg{display:block;width:100%;height:auto;max-height:50vh}
+.legend{display:flex;gap:clamp(14px,2.5vw,28px);flex-wrap:wrap;font-size:var(--t-cap);color:var(--text-3)}
+.legend span{display:inline-flex;align-items:center;gap:7px}
+.sw{width:10px;height:10px;border-radius:50%;flex:none}
+
+/* ── bars ── */
+.bars{display:flex;flex-direction:column;gap:clamp(8px,1.3vw,14px)}
+.barrow{display:grid;grid-template-columns:clamp(78px,10vw,124px) 1fr;gap:16px;align-items:center}
+.barlab{font-size:var(--t-cap);color:var(--text-2);text-align:right;font-variant-numeric:tabular-nums}
+.bar{display:flex;height:clamp(28px,3.6vw,42px);border-radius:var(--r-thumb);overflow:hidden;
+     background:var(--track)}
+.bar span{display:flex;align-items:center;padding:0 11px;font-size:var(--t-cap);font-weight:600;
+          color:#fff;white-space:nowrap;overflow:hidden}
+.bar .w{background:var(--heat)}
+.bar .r{background:var(--accent)}
+.bar .o{background:#b4b4bb}
+
+/* ── title slide ── */
+.hero{gap:clamp(16px,2.6vw,30px)}
+.hr{height:1px;background:var(--hairline)}
+.meta{display:flex;gap:clamp(16px,3.4vw,44px);flex-wrap:wrap;font-size:var(--t-cap);color:var(--text-3)}
+.meta b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ── chrome ── */
+.hud{position:fixed;right:clamp(14px,2.4vw,30px);bottom:clamp(14px,2.4vw,30px);z-index:50;
+     display:flex;align-items:center;gap:7px;font-size:var(--t-cap);color:var(--text-3);
+     background:rgba(255,255,255,.72);backdrop-filter:saturate(180%) blur(20px);
+     -webkit-backdrop-filter:saturate(180%) blur(20px);
+     border-radius:var(--r-pill);padding:6px 15px;box-shadow:var(--sh-card);
+     font-variant-numeric:tabular-nums}
+.hud b{color:var(--text);font-weight:600}
+.prog{position:fixed;top:0;left:0;height:2px;background:var(--accent);z-index:60;width:0;
+      transition:width .3s cubic-bezier(.32,.72,0,1)}
+
+/* ── motion ── */
+.rv{opacity:0;transform:translateY(12px);
+    transition:opacity .62s cubic-bezier(.32,.72,0,1),transform .62s cubic-bezier(.32,.72,0,1)}
+.slide.on .rv{opacity:1;transform:none}
+.slide.on .rv:nth-child(2){transition-delay:.06s}
+.slide.on .rv:nth-child(3){transition-delay:.12s}
+.slide.on .rv:nth-child(4){transition-delay:.18s}
+.slide.on .rv:nth-child(5){transition-delay:.24s}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .rv{transition:none;opacity:1;transform:none}
+  .prog{transition:none}
+}
+@media (max-width:760px){
+  .s4{grid-template-columns:repeat(2,1fr)}
+  .s3,.s2{grid-template-columns:1fr}
+  .barrow{grid-template-columns:1fr;gap:5px}
+  .barlab{text-align:left}
+}
+</style>
+
+<div class="prog" id="prog"></div>
+<nav class="hud"><b id="cur">01</b><span>/</span><span id="tot">18</span></nav>
+
+<main>
+
+<!-- 01 ─── TITLE -->
+<section class="slide"><div class="inner hero">
+  <div class="eyebrow rv"><span>context-clock · cachecost</span></div>
+  <h1 class="rv">What an agent<br>pays to remember</h1>
+  <p class="lead rv">Six instrumented coding sessions, billed by a live API. What context costs as it grows, what a prompt cache saves, and what happens the moment that cache lapses.</p>
+  <div class="hr rv"></div>
+  <div class="meta rv">
+    <span><b>6</b> sessions</span><span><b>466</b> billed requests</span>
+    <span><b>$40.04</b> measured spend</span><span><b>478,753</b> peak context</span>
+    <span>claude-sonnet-5</span>
+  </div>
+</div></section>
+
+<!-- 02 ─── THE PROBLEM -->
+<section class="slide"><div class="inner read">
+  <div class="eyebrow rv"><span class="idx">01</span><span>The problem</span></div>
+  <h2 class="rv">The number on your context meter is not your bill</h2>
+  <p class="lead rv">Take the token count a session reports, multiply by the published input rate, and you get an estimate that is wrong in two directions at once. The errors do not cancel — they compound.</p>
+  <div class="panel rv"><div class="rows">
+    <div class="row"><dt>It undercounts requests — you pay per API call, not per prompt</dt><dd>14 → 161</dd></div>
+    <div class="row"><dt>It overprices input — a cached prefix bills at a tenth of the rate</dt><dd>0.1×</dd></div>
+    <div class="row"><dt>Understated on a 14-turn session</dt><dd class="heat">11.9×</dd></div>
+    <div class="row"><dt>Understated on a 16-turn session with idle gaps</dt><dd class="heat">26.1×</dd></div>
+  </div></div>
+  <p class="cap rv">Every figure in this deck is the provider's own billed cost. An independent price-card cross-check agreed to $0.000000 on all six sessions.</p>
+</div></section>
+
+<!-- 03 ─── WHY CONTEXT GROWS -->
+<section class="slide"><div class="inner read">
+  <div class="eyebrow rv"><span class="idx">02</span><span>Why it grows</span></div>
+  <h2 class="rv">The model remembers nothing</h2>
+  <p class="lead rv">The API is stateless. Every request re-sends the whole conversation — instructions, tool schemas, every message, every tool result — and the model reads all of it again before writing a word.</p>
+  <div class="stats s3 rv">
+    <div class="stat"><div class="k">Request 1 carries</div><div class="v">1,317</div><div class="f">tokens — the bare preamble</div></div>
+    <div class="stat"><div class="k">Request 161 carries</div><div class="v heat">478,753</div><div class="f">tokens, in a single session</div></div>
+    <div class="stat"><div class="k">Total read across the session</div><div class="v">40.5M</div><div class="f">tokens actually processed</div></div>
+  </div>
+  <p class="lead rv">Nothing here is expensive to <b>store</b>. It is expensive to <b>re-read, on every request</b> — which is the only reason a prompt cache exists.</p>
+</div></section>
+
+<!-- 04 ─── RE-READ FACTOR -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">03</span><span>The multiplier</span></div>
+  <h2 class="rv">A long session pays for its context 85 times over</h2>
+  <p class="lead rv">Divide everything ever read by the largest single prompt and you get the re-read factor. It rises with session length, because each new request re-reads a longer prefix than the last.</p>
+  <div class="tbl rv"><table>
+    <thead><tr><th>Session</th><th>Turns</th><th>Requests</th><th>Peak context</th><th>Total read</th><th>Re-read factor</th></tr></thead>
+    <tbody>
+      <tr><td>Minesweeper</td><td>6</td><td>33</td><td>52,141</td><td>855,895</td><td>16.4×</td></tr>
+      <tr><td>Minesweeper</td><td>6</td><td>43</td><td>85,423</td><td>1,689,687</td><td>19.8×</td></tr>
+      <tr><td>Snake</td><td>8</td><td>63</td><td>195,915</td><td>5,118,497</td><td>26.1×</td></tr>
+      <tr><td>Snake</td><td>14</td><td>127</td><td>363,818</td><td>21,690,881</td><td class="accent">59.6×</td></tr>
+      <tr><td>Snake · with idle gaps</td><td>16</td><td>161</td><td>478,753</td><td>40,473,650</td><td class="heat">84.5×</td></tr>
+    </tbody>
+  </table></div>
+  <p class="cap rv">This is the quadratic growth of a stateless conversation, expressed as an invoice.</p>
+</div></section>
+
+<!-- 05 ─── THE FOUR BUCKETS -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">04</span><span>How it bills</span></div>
+  <h2 class="rv">Four buckets, twelve and a half times apart</h2>
+  <p class="lead rv">Every request bills into four disjoint buckets. The multipliers are structural — identical on every model — so they are worth knowing once.</p>
+  <div class="tbl rv" style="max-height:44vh"><table>
+    <thead><tr><th>Bucket</th><th>Multiplier</th><th>Rate</th><th>When it applies</th></tr></thead>
+    <tbody>
+      <tr><td>Cache read</td><td class="accent">0.10×</td><td class="accent">$0.20</td><td class="dim">prefix served from cache</td></tr>
+      <tr><td>Uncached input</td><td>1.00×</td><td>$2.00</td><td class="dim">whatever the cache did not cover</td></tr>
+      <tr><td>Cache write · 5 min</td><td class="heat">1.25×</td><td class="heat">$2.50</td><td class="dim">prefix written to cache</td></tr>
+      <tr><td>Cache write · 1 hour</td><td class="heat">2.00×</td><td class="heat">$4.00</td><td class="dim">longer-lived entry</td></tr>
+      <tr><td>Output</td><td>5.00×</td><td>$10.00</td><td class="dim">generated tokens</td></tr>
+    </tbody>
+  </table></div>
+  <div class="stats s2 rv">
+    <div class="stat"><div class="k">Read against write — the whole story</div><div class="v heat">12.50×</div>
+      <div class="f">verified on a live bill: a 15,204-token prefix cost $0.019031 cold, $0.0015464 warm</div></div>
+    <div class="stat"><div class="k">Minimum cacheable prefix</div><div class="v">~4,096</div>
+      <div class="f">below it, nothing caches at all — no error, no warning, full price every request</div></div>
+  </div>
+</div></section>
+
+<!-- 06 ─── THE CLOCK -->
+<section class="slide"><div class="inner read">
+  <div class="eyebrow rv"><span class="idx">05</span><span>The clock</span></div>
+  <h2 class="rv">The timer starts when you send</h2>
+  <p class="lead rv">A cache entry lives five minutes. The subtlety is when those minutes begin — at the <b>start of the request</b>, not when the response finishes streaming.</p>
+  <div class="code rv">send  ├──────────────────────────────────────────────┤  entry expires
+      │
+      ├─ 3 min generating ─┐
+                           └─ <i>two minutes left to send the next one</i></div>
+  <ul class="pts rv">
+    <li><b>Generation time is spent inside the window.</b> A three-minute response leaves two minutes of thinking time, not five.</li>
+    <li><b>A read refreshes the timer, free.</b> Continuous traffic keeps a prefix alive indefinitely — a busy session is a cheap session.</li>
+    <li><b>So size is not the enemy. Silence is.</b> You can carry 300,000 tokens all day for pennies a turn, provided you keep touching it.</li>
+  </ul>
+</div></section>
+
+<!-- 07 ─── THE EXPERIMENT -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">06</span><span>The experiment</span></div>
+  <h2 class="rv">Same work, different clock</h2>
+  <p class="lead rv">An agent with four tools — write, read, list, run tests — building a headless Snake engine across a scripted brief. Real files, real test runs, verified by re-running the suite rather than trusting the model.</p>
+  <div class="stats s2 rv">
+    <div class="stat"><div class="k">Control</div><div class="v accent">No delay</div>
+      <div class="f">works straight through; every request lands inside the five-minute window</div></div>
+    <div class="stat"><div class="k">Treatment</div><div class="v heat">420s idle</div>
+      <div class="f">pauses before each new turn, past the window — the way anyone reads a diff or takes a call</div></div>
+  </div>
+  <div class="panel rv"><div class="rows">
+    <div class="row"><dt>Lines of working code produced</dt><dd>3,312</dd></div>
+    <div class="row"><dt>Tests passing at the end, both arms</dt><dd>126</dd></div>
+    <div class="row"><dt>Pauses inserted, in total</dt><dd>~100 minutes</dd></div>
+  </div></div>
+</div></section>
+
+<!-- 08 ─── THE RESULT -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">07</span><span>The result</span></div>
+  <h2 class="rv">Pauses cost three times more than the work</h2>
+  <div class="stats s4 rv">
+    <div class="stat"><div class="k">Control · billed</div><div class="v accent">$8.64</div><div class="f">127 requests · 80 min</div></div>
+    <div class="stat"><div class="k">With pauses · billed</div><div class="v heat">$24.94</div><div class="f">161 requests · 300 min</div></div>
+    <div class="stat"><div class="k">Cache misses</div><div class="v">1 vs 20</div><div class="f">of 127 and 161 requests</div></div>
+    <div class="stat"><div class="k">Wasted on idling alone</div><div class="v heat">$8.39</div><div class="f">16 expired caches, rewritten</div></div>
+  </div>
+  <div class="panel rv"><div class="rows">
+    <div class="row"><dt>Cache hit rate</dt><dd><span class="pill on"><i class="dot"></i>97.6%</span> &nbsp; <span class="pill hot"><i class="dot"></i>86.3%</span></dd></div>
+    <div class="row"><dt>Both suites green at the end</dt><dd>yes</dd></div>
+  </div></div>
+  <p class="cap rv">The arms stopped at different lengths — 14 turns against 16 — so the headline totals are not a controlled comparison. The length-independent results follow.</p>
+</div></section>
+
+<!-- 09 ─── THE INVERSION -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">08</span><span>The finding</span></div>
+  <h2 class="rv">Idle time inverts where the money goes</h2>
+  <p class="lead rv">Share of each session's bill, by billing bucket. Independent of session length — and the clearest statement of what a lapsed cache does to an invoice.</p>
+  <div class="bars rv">
+    <div class="barrow"><div class="barlab">No delay</div>
+      <div class="bar"><span class="r" style="width:48.3%">reads 48.3%</span><span class="o" style="width:36.7%">output 36.7%</span><span class="w" style="width:15.0%">writes 15%</span></div></div>
+    <div class="barrow"><div class="barlab">With pauses</div>
+      <div class="bar"><span class="w" style="width:55.2%">cache writes 55.2%</span><span class="r" style="width:27.7%">reads 27.7%</span><span class="o" style="width:17.1%">output</span></div></div>
+  </div>
+  <div class="stats s3 rv">
+    <div class="stat"><div class="k">Cache-write tokens, control</div><div class="v accent">518K</div><div class="f">the cost of building the cache once</div></div>
+    <div class="stat"><div class="k">Cache-write tokens, with pauses</div><div class="v heat">5.5M</div><div class="f">rebuilding it, over and over</div></div>
+    <div class="stat"><div class="k">Difference on identical work</div><div class="v">10.6×</div><div class="f">same task, same model, same prompts</div></div>
+  </div>
+  <p class="lead rv">In the paused session the single largest line on the invoice is <b>rewriting a cache that keeps dying</b>.</p>
+</div></section>
+
+<!-- 10 ─── THE MECHANISM -->
+<section class="slide"><div class="inner read">
+  <div class="eyebrow rv"><span class="idx">09</span><span>The mechanism</span></div>
+  <h2 class="rv">Two consecutive requests, fifteen times apart</h2>
+  <p class="lead rv">Nothing changed between these but the clock. The first read its prefix from cache; the second, after a seven-minute pause, rewrote all of it.</p>
+  <div class="code rv">req 90  <i>hit </i>  ctx 307,998   read 307,899   <i>$0.06373</i>   <s>gap</s>    2.4s
+req 91  <b>MISS</b>  ctx 308,330   read       0   <b>$0.93466</b>   <s>gap</s>  423.4s</div>
+  <div class="stats s3 rv">
+    <div class="stat"><div class="k">What changed</div><div class="v">Nothing</div><div class="f">same conversation, one request apart</div></div>
+    <div class="stat"><div class="k">Except elapsed time</div><div class="v heat">423s</div><div class="f">past the five-minute window</div></div>
+    <div class="stat"><div class="k">And it returned</div><div class="v">nothing usable</div><div class="f">truncated at the output cap — 93¢ for a dead request</div></div>
+  </div>
+</div></section>
+
+<!-- 11 ─── SCALING -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">10</span><span>Scaling</span></div>
+  <h2 class="rv">A pause is a tax, not a toll</h2>
+  <div class="rv">
+  <svg viewBox="0 0 900 330" role="img" aria-label="Waste per cache miss rises in a straight line with context size, from 1.5 cents at 6,000 tokens to 99 cents at 430,000 tokens.">
+    <g stroke="rgba(0,0,0,0.07)" stroke-width="1">
+      <line x1="74" y1="286" x2="880" y2="286"/><line x1="74" y1="223" x2="880" y2="223"/>
+      <line x1="74" y1="160" x2="880" y2="160"/><line x1="74" y1="97" x2="880" y2="97"/>
+      <line x1="74" y1="34" x2="880" y2="34"/>
+    </g>
+    <g fill="#86868b" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="12" text-anchor="end">
+      <text x="64" y="290">$0</text><text x="64" y="227">$0.25</text><text x="64" y="164">$0.50</text>
+      <text x="64" y="101">$0.75</text><text x="64" y="38">$1.00</text>
+    </g>
+    <g fill="#86868b" font-family="-apple-system,BlinkMacSystemFont,sans-serif" font-size="12" text-anchor="middle">
+      <text x="74" y="308">0</text><text x="261" y="308">100k</text><text x="449" y="308">200k</text>
+      <text x="636" y="308">300k</text><text x="824" y="308">400k</text>
+      <text x="477" y="325" font-size="11.5">context rewritten, tokens</text>
+    </g>
+    <line x1="74" y1="286" x2="880" y2="37" stroke="#ff6b00" stroke-width="1.5" stroke-dasharray="4 4" opacity=".4"/>
+    <g fill="#ff6b00">
+      <circle cx="86" cy="282" r="5"/><circle cx="109" cy="275" r="5"/><circle cx="151" cy="262" r="5"/>
+      <circle cx="181" cy="253" r="5"/><circle cx="329" cy="207" r="5"/><circle cx="375" cy="193" r="5"/>
+      <circle cx="410" cy="182" r="5"/><circle cx="605" cy="122" r="5"/><circle cx="627" cy="115" r="5"/>
+      <circle cx="653" cy="107" r="5"/><circle cx="653" cy="107" r="5"/><circle cx="664" cy="104" r="5"/>
+      <circle cx="675" cy="100" r="5"/><circle cx="748" cy="78" r="5"/><circle cx="790" cy="66" r="5"/>
+      <circle cx="845" cy="49" r="5"/>
+    </g>
+    <g fill="none" stroke="#ff6b00" stroke-width="1.8">
+      <circle cx="616" cy="119" r="5"/><circle cx="675" cy="100" r="5"/><circle cx="748" cy="78" r="5"/>
+      <circle cx="882" cy="38" r="5"/>
+    </g>
+    <text x="100" y="272" fill="#86868b" font-family="-apple-system,sans-serif" font-size="12">1.5¢</text>
+    <text x="838" y="40" fill="#ff6b00" font-family="-apple-system,sans-serif" font-size="12" text-anchor="end" font-weight="600">99¢</text>
+  </svg>
+  </div>
+  <div class="legend rv">
+    <span><i class="sw" style="background:#ff6b00"></i>expired by idling — 16</span>
+    <span><i class="sw" style="border:1.8px solid #ff6b00"></i>expired by a client retry — 4</span>
+    <span>dashed line: the write-minus-read spread, $2.30 per million tokens</span>
+  </div>
+  <p class="lead rv">The same seven-minute pause cost <b>1.5¢</b> early in the session and <b>99¢</b> near the end. The penalty is not a fixed fee — it is a levy on however much conversation you are carrying.</p>
+</div></section>
+
+<!-- 12 ─── THE LEDGER -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">11</span><span>The ledger</span></div>
+  <h2 class="rv">Every miss, in order</h2>
+  <div class="tbl rv"><table>
+    <thead><tr><th>#</th><th>Context</th><th>Billed</th><th>If cached</th><th>Wasted</th><th>Cause</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>6,314</td><td>$0.02987</td><td class="accent">$0.00126</td><td class="heat">$0.0145</td><td class="dim">idle</td></tr>
+      <tr><td>2</td><td>18,805</td><td>$0.05535</td><td class="accent">$0.00376</td><td class="heat">$0.0433</td><td class="dim">idle</td></tr>
+      <tr><td>3</td><td>41,142</td><td>$0.10352</td><td class="accent">$0.00823</td><td class="heat">$0.0946</td><td class="dim">idle</td></tr>
+      <tr><td>4</td><td>57,038</td><td>$0.18690</td><td class="accent">$0.01141</td><td class="heat">$0.1312</td><td class="dim">idle</td></tr>
+      <tr><td>5</td><td>136,081</td><td>$0.34092</td><td class="accent">$0.02722</td><td class="heat">$0.3130</td><td class="dim">idle</td></tr>
+      <tr><td>6</td><td>160,523</td><td>$0.40199</td><td class="accent">$0.03210</td><td class="heat">$0.3692</td><td class="dim">idle</td></tr>
+      <tr><td>7</td><td>178,974</td><td>$0.49574</td><td class="accent">$0.03579</td><td class="heat">$0.4116</td><td class="dim">idle</td></tr>
+      <tr><td>8</td><td>282,759</td><td>$0.79978</td><td class="accent">$0.05655</td><td class="heat">$0.6503</td><td class="dim">idle</td></tr>
+      <tr><td>9</td><td>288,899</td><td>$0.81429</td><td class="accent">$0.05778</td><td class="heat">$0.6645</td><td>retry</td></tr>
+      <tr><td>10</td><td>294,595</td><td>$0.81698</td><td class="accent">$0.05892</td><td class="heat">$0.6776</td><td class="dim">idle</td></tr>
+      <tr><td>11</td><td>308,330</td><td>$0.93466</td><td class="accent">$0.06167</td><td class="heat">$0.7092</td><td class="dim">idle</td></tr>
+      <tr><td>12</td><td>308,497</td><td>$0.77513</td><td class="accent">$0.06170</td><td class="heat">$0.7095</td><td class="dim">idle</td></tr>
+      <tr><td>13</td><td>314,043</td><td>$0.78770</td><td class="accent">$0.06281</td><td class="heat">$0.7223</td><td class="dim">idle</td></tr>
+      <tr><td>14</td><td>320,291</td><td>$0.80382</td><td class="accent">$0.06406</td><td class="heat">$0.7367</td><td class="dim">idle</td></tr>
+      <tr><td>15</td><td>320,369</td><td>$0.80236</td><td class="accent">$0.06407</td><td class="heat">$0.7368</td><td>retry</td></tr>
+      <tr><td>16</td><td>359,151</td><td>$0.91240</td><td class="accent">$0.07183</td><td class="heat">$0.8261</td><td>retry</td></tr>
+      <tr><td>17</td><td>379,382</td><td>$0.96685</td><td class="accent">$0.07588</td><td class="heat">$0.8726</td><td class="dim">idle</td></tr>
+      <tr><td>18</td><td>410,262</td><td>$1.02742</td><td class="accent">$0.08205</td><td class="heat">$0.9436</td><td class="dim">idle</td></tr>
+      <tr><td>19</td><td>429,899</td><td>$1.09392</td><td class="accent">$0.08598</td><td class="heat">$0.9888</td><td>retry</td></tr>
+      <tr><td>20</td><td>432,892</td><td>$1.09994</td><td class="accent">$0.08658</td><td class="heat">$0.9956</td><td class="dim">idle</td></tr>
+    </tbody>
+    <tfoot>
+      <tr><td colspan="4">Wasted by idling — 16 misses</td><td class="heat">$8.3948</td><td></td></tr>
+      <tr><td colspan="4">Wasted by client retries — 4 misses</td><td class="heat">$3.2161</td><td></td></tr>
+    </tfoot>
+  </table></div>
+</div></section>
+
+<!-- 13 ─── RETRY STORM -->
+<section class="slide"><div class="inner read">
+  <div class="eyebrow rv"><span class="idx">12</span><span>Unplanned finding</span></div>
+  <h2 class="rv">A cache can expire while you are working</h2>
+  <p class="lead rv">Four misses arrived <b>inside</b> the five-minute window — one after a gap of just ten seconds — in sessions where nobody was idle at all.</p>
+  <div class="code rv">req 76  <b>MISS</b>  ctx 282,759   <b>$0.79978</b>   gap  422.0s   <s>← the pause we inserted</s>
+req 77  <b>MISS</b>  ctx 288,899   <b>$0.81429</b>   gap  101.5s   <s>← nobody was idle</s>
+req 78  <i>hit </i>  ctx 291,028   <i>$0.07177</i>   gap 1940.8s   <s>← req 77 took 32 minutes</s></div>
+  <p class="lead rv">Request 77 timed out, retried, and landed <b>1,809 seconds</b> after its first attempt — half an hour after the prefix it needed had died. The cache expired inside the client's own retry, and in the bill it is indistinguishable from a coffee break.</p>
+  <div class="stats s2 rv">
+    <div class="stat"><div class="k">Occurrences across both sessions</div><div class="v heat">6</div>
+      <div class="f">at 160,769 · 178,974 · 288,899 · 320,369 · 359,151 · 429,899 tokens</div></div>
+    <div class="stat"><div class="k">Every one of them above</div><div class="v">150K</div>
+      <div class="f">bigger conversations are likelier to time out — and dearer to rebuild when they do</div></div>
+  </div>
+</div></section>
+
+<!-- 14 ─── CROSSOVER -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">13</span><span>Second finding</span></div>
+  <h2 class="rv">Output stops being the story</h2>
+  <p class="lead rv">Short sessions are dominated by what the model writes. Long ones by re-reading what it already wrote. The crossover is clean and monotone across four uninterrupted sessions.</p>
+  <div class="bars rv">
+    <div class="barrow"><div class="barlab">6 turns</div>
+      <div class="bar"><span class="o" style="width:63.6%">output 63.6%</span><span class="r" style="width:21.3%">reads 21.3%</span><span class="w" style="width:15.1%">writes</span></div></div>
+    <div class="barrow"><div class="barlab">8 turns</div>
+      <div class="bar"><span class="o" style="width:51.4%">output 51.4%</span><span class="r" style="width:32.2%">reads 32.2%</span><span class="w" style="width:16.4%">writes</span></div></div>
+    <div class="barrow"><div class="barlab">14 turns</div>
+      <div class="bar"><span class="r" style="width:48.3%">reads 48.3%</span><span class="o" style="width:36.7%">output 36.7%</span><span class="w" style="width:15.0%">writes</span></div></div>
+  </div>
+  <div class="stats s3 rv">
+    <div class="stat"><div class="k">Cached tokens read, 14-turn session</div><div class="v">20.9M</div><div class="f">against 317K generated</div></div>
+    <div class="stat"><div class="k">Saved by caching</div><div class="v accent">5.3×</div><div class="f">$45.92 without it</div></div>
+    <div class="stat"><div class="k">Naive estimate error</div><div class="v">8.3× → 11.9×</div><div class="f">grows with session length too</div></div>
+  </div>
+  <p class="cap rv">"Output dominates an agent bill" holds only for short sessions. By fourteen turns, re-reading the conversation is the largest line on the invoice.</p>
+</div></section>
+
+<!-- 15 ─── REPRODUCIBILITY -->
+<section class="slide"><div class="inner read">
+  <div class="eyebrow rv"><span class="idx">14</span><span>Measurement hygiene</span></div>
+  <h2 class="rv">Never quote a session total</h2>
+  <p class="lead rv">Three byte-identical runs of the same command — same model, same prompts, same workload:</p>
+  <div class="stats s3 rv">
+    <div class="stat"><div class="k">Run 1</div><div class="v">$0.8992</div><div class="f">33 requests · <span class="pill on">green</span></div></div>
+    <div class="stat"><div class="k">Run 2</div><div class="v">$1.1745</div><div class="f">39 requests · <span class="pill hot">red</span></div></div>
+    <div class="stat"><div class="k">Run 3</div><div class="v">$1.4187</div><div class="f">43 requests · <span class="pill on">green</span></div></div>
+  </div>
+  <div class="panel rv"><div class="rows">
+    <div class="row"><dt>Spread on the session total</dt><dd class="heat">+57.8%</dd></div>
+    <div class="row"><dt>Spread on the recovered cache-read rate</dt><dd class="accent">0</dd></div>
+    <div class="row"><dt>Price card against the real bill, every run</dt><dd class="accent">$0.000000</dd></div>
+  </div></div>
+  <p class="lead rv">An agent writes different code each run. <b>Publish rates, bucket shares and invariants — never an absolute session cost.</b> Run 2 cost 31% more than run 1 and delivered less, so cost per <em>completed task</em> is the only honest unit.</p>
+</div></section>
+
+<!-- 16 ─── ALL RUNS -->
+<section class="slide"><div class="inner">
+  <div class="eyebrow rv"><span class="idx">15</span><span>The dataset</span></div>
+  <h2 class="rv">Every session behind these numbers</h2>
+  <div class="tbl rv"><table>
+    <thead><tr><th>Session</th><th>Turns</th><th>Requests</th><th>Wall clock</th><th>Billed</th><th>Misses</th><th>Peak context</th><th>Suite</th></tr></thead>
+    <tbody>
+      <tr><td>Minesweeper</td><td>6</td><td>33</td><td>10.0 min</td><td>$0.8992</td><td>0</td><td>52,141</td><td><span class="pill on">green</span></td></tr>
+      <tr><td>Minesweeper</td><td>6</td><td>39</td><td>12.5 min</td><td>$1.1745</td><td>0</td><td>67,197</td><td><span class="pill hot">red</span></td></tr>
+      <tr><td>Minesweeper</td><td>6</td><td>43</td><td>13.5 min</td><td>$1.4187</td><td>0</td><td>85,423</td><td><span class="pill on">green</span></td></tr>
+      <tr><td>Snake</td><td>8</td><td>63</td><td>22.2 min</td><td>$2.9624</td><td>0</td><td>195,915</td><td><span class="pill on">green</span></td></tr>
+      <tr><td>Snake · no delay</td><td>14</td><td>127</td><td>80.3 min</td><td class="accent">$8.6371</td><td>1</td><td>363,818</td><td><span class="pill on">green</span></td></tr>
+      <tr><td>Snake · with pauses</td><td>16</td><td>161</td><td>299.5 min</td><td class="heat">$24.9446</td><td class="heat">20</td><td>478,753</td><td><span class="pill on">green</span></td></tr>
+    </tbody>
+    <tfoot><tr><td>Total</td><td>56</td><td>466</td><td>7.3 hrs</td><td class="heat">$40.04</td><td>21</td><td>—</td><td></td></tr></tfoot>
+  </table></div>
+  <p class="cap rv">Per-request rows and the full conversation behind every datapoint were captured for each session. A separate probe verified the cache mechanism on a second model, and an independent cross-check validated 15 published rates across 3 models with 0 disagreements.</p>
+</div></section>
+
+<!-- 17 ─── LIMITS -->
+<section class="slide"><div class="inner read">
+  <div class="eyebrow rv"><span class="idx">16</span><span>Limits</span></div>
+  <h2 class="rv">What this does not say</h2>
+  <ul class="pts rv">
+    <li><b>The paused session is a worst case.</b> It forces expiry at every turn boundary; real work does not. Uninterrupted is the floor, this is the ceiling — a working day lands between, and where depends on habits rather than context size.</li>
+    <li><b>The two arms ran to different lengths</b> — 14 turns against 16 — because each stopped on its own judgement. The total-cost gap is therefore not attributable to the clock alone. The miss count, hit rate, bucket shares and per-miss curve are length-independent; those are the quotable results.</li>
+    <li><b>One model, one task family, one provider.</b> The 12.5× ratio and bucket structure are general. The specific shares are not.</li>
+    <li><b>Session totals vary ±58%</b> on identical inputs. Rates and shares reproduce to the digit.</li>
+    <li><b>One known instrument flaw.</b> A request's elapsed time is measured from its first attempt, so a retried request under-reports the true gap. Recorded rather than silently corrected.</li>
+  </ul>
+</div></section>
+
+<!-- 18 ─── CLOSE -->
+<section class="slide"><div class="inner hero">
+  <div class="eyebrow rv"><span>context-clock · cachecost</span></div>
+  <h1 class="rv">Idle time is<br>a line item</h1>
+  <div class="hr rv"></div>
+  <div class="stats s3 rv">
+    <div class="stat"><div class="k">Of one session's bill</div><div class="v heat">34%</div>
+      <div class="f">spent rewriting caches that expired during pauses</div></div>
+    <div class="stat"><div class="k">The same pause costs</div><div class="v">1.5¢ → 99¢</div>
+      <div class="f">depending only on how much conversation you carry</div></div>
+    <div class="stat"><div class="k">And it happens unprompted</div><div class="v">6×</div>
+      <div class="f">cache expiries caused by slow requests, not people</div></div>
+  </div>
+  <p class="cap rv">Every figure traces to a per-request record and the provider's billed cost. Open benchmark — workload, harness and raw data reproducible from the repository.</p>
+</div></section>
+
+</main>
+
+<script>
+(function(){
+  "use strict";
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var cur = document.getElementById("cur"), prog = document.getElementById("prog");
+  document.getElementById("tot").textContent = String(slides.length).padStart(2,"0");
+  var index = 0;
+
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting) return;
+      e.target.classList.add("on");
+      index = slides.indexOf(e.target);
+      cur.textContent = String(index+1).padStart(2,"0");
+      prog.style.width = ((index+1)/slides.length*100)+"%";
+    });
+  }, {threshold:0.5});
+  slides.forEach(function(s){ io.observe(s); });
+
+  function go(i){
+    i = Math.max(0, Math.min(slides.length-1, i));
+    slides[i].scrollIntoView({behavior:"smooth", block:"start"});
+  }
+  document.addEventListener("keydown", function(e){
+    var k = e.key;
+    if(k==="ArrowDown"||k==="ArrowRight"||k===" "||k==="PageDown"){ e.preventDefault(); go(index+1); }
+    else if(k==="ArrowUp"||k==="ArrowLeft"||k==="PageUp"){ e.preventDefault(); go(index-1); }
+    else if(k==="Home"){ e.preventDefault(); go(0); }
+    else if(k==="End"){ e.preventDefault(); go(slides.length-1); }
+  });
+  var y0 = null;
+  document.addEventListener("touchstart", function(e){ y0 = e.touches[0].clientY; }, {passive:true});
+  document.addEventListener("touchend", function(e){
+    if(y0===null) return;
+    var dy = y0 - e.changedTouches[0].clientY;
+    if(Math.abs(dy) > 55) go(index + (dy>0?1:-1));
+    y0 = null;
+  }, {passive:true});
+})();
+</script>
+
+</body>
+</html>
