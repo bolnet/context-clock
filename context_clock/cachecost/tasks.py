@@ -13,9 +13,8 @@ The task is a **headless Minesweeper engine**. It earns its place:
   enough real work to take several turns and many tool calls — which is the
   point, because that is what fills a cached prefix.
 
-Deliberately *not* the Snake game from the talk being validated: reproducing
-their exact workload would test whether we can copy a session, not whether the
-mechanism holds on a task nobody tuned for it.
+Deliberately an unglamorous, self-contained problem: the point is to measure
+the cache on a task nobody tuned for it.
 
 ``SNAKE`` is the second workload, and it *is* Snake — added on purpose, with
 that tradeoff understood. It exists for two reasons minesweeper cannot serve:
@@ -23,9 +22,9 @@ that tradeoff understood. It exists for two reasons minesweeper cannot serve:
 * **Length.** 13 scripted turns across four modules, where minesweeper has 6 in
   one file. Cost is a function of session length, so measuring the TTL cliff
   and the cost-vs-turns curve needs a session long enough to have a curve.
-* **Comparability.** It is the talk's own workload, so a figure measured here
-  can be set beside theirs directly. Minesweeper remains the independent
-  check; snake is the like-for-like one. Neither is reported as the other.
+* **A second workload.** Two unrelated tasks guard against a result that is
+  really a property of one problem. Minesweeper is the short-session check;
+  snake is the long-session one. Neither is reported as the other.
 
 The modules are split (``snake.py``, ``levels.py``, ``ai.py``, ``replay.py``)
 because ``write_file`` re-sends whole files: a single module that outgrows

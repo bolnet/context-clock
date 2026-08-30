@@ -192,8 +192,8 @@ def find_lookback_misses(run: AgentRun, ttl_seconds: float = TTL_5M_SECONDS) -> 
 
     A miss whose preceding turn appended more than 20 content blocks, arriving
     well inside the TTL, cannot be explained by the clock. That is the
-    mechanism the talk never mentions, observed in a real session rather than
-    provoked by a synthetic probe.
+    second, time-independent cause of the cliff, observed in a real session
+    rather than provoked by a synthetic probe.
     """
     misses = []
     for previous, current in zip(run.records, run.records[1:]):

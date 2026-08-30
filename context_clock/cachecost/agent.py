@@ -1,8 +1,7 @@
 """The agent loop — real tool use, instrumented per API request.
 
 One user prompt becomes as many API requests as the model needs tool calls, so
-this is where the talk's "6 prompts turned into 31 API requests" actually comes
-from. Every request is recorded with its cache split, its gap from the previous
+this is where "6 user prompts became 31 API requests" actually comes from. Every request is recorded with its cache split, its gap from the previous
 request, and how many content blocks the turn appended — the three quantities
 that decide whether the next request hits or misses.
 
