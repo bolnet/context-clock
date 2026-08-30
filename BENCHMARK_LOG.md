@@ -498,3 +498,71 @@ true clock distance whenever a retry happens, and can falsely certify a miss as 
 `--until-complete` did **not** fire: `GAME COMPLETE` appears zero times. The run ended at
 14 turns because turn 13 exhausted `MAX_ROUNDS_PER_TURN`, i.e. the safety path, not the
 model's own judgement. The flag remains unproven against a live model.
+
+
+### Snake, open-ended, `sawtooth` treatment — 16 turns (2026-08-30)
+
+`--task snake --until-complete --max-turns 16 --policy sawtooth --idle 420 --ttl 5m`
+
+16 user turns -> **161 API requests**, 299.5 min, **suite green**, billed **$24.9446**
+(price card agreement 100.00%, worst-case error $0.000000).
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| **cache writes** | **$13.7624** | **55.2%** | 5,504,954 | $2.50/Mtok |
+| cache reads | $6.9082 | 27.7% | 34,541,036 | $0.20/Mtok |
+| output | $4.2734 | 17.1% | 427,338 | $10.00/Mtok |
+| uncached input | $0.0006 | 0.0% | 322 | $2.00/Mtok |
+
+Peak context 478,753; cumulative 40,473,650; **re-read factor 84.5x**. Hit rate **86.3%**.
+Naive estimate $0.9575, understating **26.1x**. Read rate recovered from billing
+**$0.200/Mtok, r2 = 1.000**; breakpoint advancing True. Cumulative cost vs turn: linear
+r2 0.917, **quadratic r2 0.985**.
+
+#### The pair
+
+| | busy control | sawtooth |
+|---|---|---|
+| turns | 14 | 16 |
+| requests | 127 | 161 |
+| billed | **$8.6371** | **$24.9446** |
+| cache misses | **1 / 127** | **20 / 161** |
+| hit rate | 97.6% | 86.3% |
+| peak context | 363,818 | 478,753 |
+| re-read factor | 59.6x | 84.5x |
+| naive understatement | 11.9x | 26.1x |
+| **cache-write share of bill** | **15.0%** | **55.2%** |
+
+**The bucket split inverts.** In the paused run the largest line on the invoice is
+*rewriting a cache that keeps dying* — 5,504,954 write tokens against the control's
+518,175, a **10.6x** difference on the same workload.
+
+#### Miss attribution
+
+| cause | misses | wasted |
+|---|---|---|
+| clock expiry (the manipulated variable) | 16 | **$8.3948** |
+| client retry storm | 4 | $3.2161 |
+| **total** | **20** | **$11.6110** |
+
+Waste is `context x (2.50 - 0.20)/1e6` — the write-minus-read spread on the rewritten
+prefix. Per-miss waste scaled from **$0.0145** at 6,314 tokens to **$0.9888** at 429,899.
+The largest single request measured: **$1.09994**.
+
+#### Caveat — the arms are not length-matched
+
+`--until-complete` let each arm stop on its own, and they stopped at different lengths
+(14 vs 16 turns). **The $8.64 -> $24.94 gap is therefore NOT attributable to the clock
+alone**; part of it is two extra turns at 400k+ context, where every request is dear.
+The length-independent results are the ones to quote: the **miss count** (1 vs 20), the
+**hit rate** (97.6% vs 86.3%), the **write-share inversion** (15.0% vs 55.2%), and the
+**per-miss waste curve**. A clean cost delta needs both arms re-run at a fixed `--turns N`.
+
+#### Retry storms — six across the pair
+
+Misses arriving *inside* the TTL, caused by a request timing out and retrying past the
+prefix's lifetime: at 160,769 (busy) and 288,899 / 320,369 / 359,151 / 429,899 (sawtooth),
+plus one earlier. **Every occurrence above 150k context.** See `CACHECOST_METHODOLOGY.md` 8a.
+
+A mid-run hypothesis that the cache had a *maximum* prefix size (two misses at ~430k) was
+**disproved**: request 160 read back **478,679 tokens** cleanly. The 430k misses were retries.
