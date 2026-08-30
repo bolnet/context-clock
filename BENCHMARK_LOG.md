@@ -314,3 +314,255 @@ deadlock (Attestor `:8090` recalls all returned 200 OK; the worker waits on Olla
   rot-until-complete stop logic, per-turn token usage, retrieval memory, NIAH, providers) —
   test-first; provider + end-to-end paths validated by the real runs above.
 - ⚠️ The OpenRouter API key was shared in chat — **rotate it.**
+
+---
+
+## cachecost — prompt-cache economics (2026-08-28)
+
+Real agentic coding session (headless Minesweeper engine, 6 user turns) driven through a
+tool-use loop against **claude-sonnet-5 via OpenRouter**, `--policy busy` (no artificial
+delay). Every request's four-way billing split and **real billed cost** (`usage.cost`)
+recorded. Per-request CSVs in `results/cache-mine-sonnet-busy*.csv` (gitignored).
+
+### Two identical runs — totals vary, structure does not
+
+| Measure | Run 1 | Run 2 | Run 3 | spread |
+|---|---|---|---|---|
+| API requests | 33 | 39 | 43 | +30.3% |
+| Wall clock | 10.0 min | 12.5 min | 13.5 min | +35.0% |
+| **Billed** | **$0.8992** | **$1.1745** | **$1.4187** | **+57.8%** |
+| Peak context | 52,141 | 67,197 | 85,423 | +63.8% |
+| Cumulative tokens | 855,895 | 1,190,756 | 1,689,687 | +97.4% |
+| Task completed (suite green) | yes | **no** | yes | — |
+| Price card vs real bill | $0.000000 | $0.000000 | $0.000000 | 0 |
+| Read rate recovered from billing | $0.200/Mtok, r²=1.000 | $0.200/Mtok, r²=1.000 | $0.200/Mtok, r²=1.000 | 0 |
+| Output share of bill | 69.0% | 67.9% | 63.6% | −5.4pp |
+| Cache hit rate | 93.4% | 93.9% | 94.7% | +1.3pp |
+| Cache misses | 0 / 33 | 0 / 39 | 0 / 43 | 0 |
+
+**Finding:** session totals are **not reproducible (±58% across three runs)** — the agent is non-deterministic
+and writes different code each run. The **rate structure is reproducible to the digit**.
+Therefore cachecost may publish rates, bucket shares and invariants; it may **not** publish an
+absolute session cost as "the cost of this workload". Run 2 also cost 31% more and delivered
+less (red suite, ended on an output-cap truncation); run 3 cost **58% more than run 1**
+for the same six prompts and the same green suite — cost per *completed* task is the only
+honest unit for comparing sessions.
+
+### Run 1 bucket split (the completed run)
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| output | $0.6204 | **69.0%** | 62,036 | $10.00/Mtok |
+| cache reads | $0.1483 | 16.5% | 741,654 | $0.20/Mtok |
+| cache writes | $0.1303 | 14.5% | 52,139 | $2.50/Mtok |
+| uncached input | $0.0001 | 0.0% | 66 | $2.00/Mtok |
+
+Without caching: $2.2081 (2.5× the bill; **5.69×** on the input side alone). Naive
+context-meter estimate $0.1043, understating **8.6×**. Re-read factor **16.4×**.
+
+Input cost per request by turn (output removed): 1.00× → 1.44× → 2.21× → 3.13× → 3.15× →
+**4.32×** as average context grew 3,143 → 45,911. Same work, more context to re-read.
+
+### Cache mechanism probe (claude-haiku-4-5, 15,204-token prefix)
+
+| | Cold (write) | Warm (read) |
+|---|---|---|
+| Billed | $0.019031 | $0.0015464 |
+| Predicted from price card | $0.019031 | $0.0015464 |
+
+Prefix cost ratio **12.50×**, exact. Also observed: a 2,508-token prefix cached nothing
+(minimum cacheable prefix ~4,096 on Haiku, fails silently); Haiku 4.5's 200k window was
+exhausted at request 61 of a 6-turn session.
+
+### Price card cross-check
+
+`python -m context_clock.cachecost.price_check` — 15 rates across 3 models vs OpenRouter's
+published card, **0 disagreements**.
+
+### Not measured
+
+The 5-minute TTL was **never exercised** — longest gap in either run was 86.2s. Claims C11,
+C18, C20, C21 rest on arithmetic and documentation, not on measurement here. Needs
+`--policy sawtooth --idle 420`.
+
+
+### Run 3 — third identical busy run (2026-08-28)
+
+`--task minesweeper --model claude-sonnet-5 --policy busy --ttl 5m --capture-context`
+
+6 user turns -> **43 API requests**, 13.5 min, **suite green**, billed **$1.4187**
+(price card agreement 100.00%, worst-case error $0.000000).
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| output | $0.9022 | **63.6%** | 90,220 | $10.00/Mtok |
+| cache reads | $0.3028 | 21.3% | 1,513,960 | $0.20/Mtok |
+| cache writes | $0.2136 | 15.1% | 85,421 | $2.50/Mtok |
+| uncached input | $0.0002 | 0.0% | 86 | $2.00/Mtok |
+
+Without caching $4.1011 (**2.9×** the bill). Naive context-meter estimate $0.1708,
+understating **8.3×**. Peak context 85,423; cumulative 1,689,687; **re-read factor 19.8×**.
+Cache hit rate 94.7%, **0 misses / 43 requests**. Read rate recovered from billing
+**$0.200/Mtok, r² = 1.000**; breakpoint advancing True; M1 not triggered.
+
+Cumulative cost vs turn: linear fit r² 0.928, **quadratic fit r² 0.983** — the
+super-linear shape, measured.
+
+Three runs of a byte-identical command now span **$0.8992 / $1.1745 / $1.4187 (+57.8%)**
+while every rate and invariant reproduced exactly. The n=3 evidence is stronger than the
+n=2 statement it replaces: **publish rates, shares and invariants; never an absolute
+session cost.**
+
+---
+
+## cachecost — the TTL experiment (snake, in flight 2026-08-28)
+
+The gap in every run above: the **5-minute TTL was never exercised** (longest observed
+gap 86.2s). Closing it needs idle time, and a session long enough to have a curve.
+
+**New workload: `snake`** — 13 scripted turns across four modules (`snake.py`,
+`levels.py`, `ai.py`, `replay.py`): engine, buffered input queue, scoring + speed curve,
+render, `from_layout`, wrap mode, obstacle levels, expiring bonus food, JSON replay
+round-trip, BFS AI, tail-safety AI, 50-state rewind, review pass.
+
+Two deliberate design choices, both recorded because both cut against an earlier one:
+
+* It **is** the talk's own workload, where `minesweeper` was chosen to *not* be. The
+  tradeoff is accepted for **comparability** — a figure here can be set beside theirs.
+  Minesweeper stays the independent check; snake is the like-for-like one.
+* Work is **split across four modules** because `write_file` re-sends whole files, and a
+  module outgrowing `--max-tokens` truncates mid-write and burns the turn — the failure
+  that ended run 2 red. Both snake runs use `--max-tokens 16384`.
+
+**The pair** (identical task, identical model, only the clock differs):
+
+| | policy | idle between turns | purpose |
+|---|---|---|---|
+| control | `busy` | none | same-task baseline |
+| treatment | `sawtooth` | **420s** (> 300s TTL) | forces expiry at every turn boundary |
+
+Prediction under test: the control shows **0 cache misses**; the treatment shows **one
+forced miss per turn boundary (~12)**, each rewriting the whole prefix at 1.25× instead
+of reading it at 0.1×. The miss *count* is categorical and survives the ±58% total-cost
+noise; the cost delta is what the matched control exists to license.
+
+This is the run that moves C11, C18, C20 and C21 off arithmetic and onto measurement.
+Results to be recorded here when it lands — **nothing from it is quoted until then.**
+
+
+### Snake, open-ended, `busy` control — 14 turns (2026-08-29)
+
+`--task snake --until-complete --max-turns 16 --policy busy --ttl 5m --max-tokens 16384`
+
+14 user turns -> **127 API requests**, 80.3 min, **suite green**, billed **$8.6371**
+(price card agreement 100.00%, worst-case error $0.000000). Built 3,312 lines across
+`snake.py`, `levels.py`, `ai.py`, `replay.py` + four test modules.
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| **cache reads** | **$4.1711** | **48.3%** | 20,855,446 | $0.20/Mtok |
+| output | $3.1701 | 36.7% | 317,006 | $10.00/Mtok |
+| cache writes | $1.2954 | 15.0% | 518,175 | $2.50/Mtok |
+| uncached input | $0.0005 | 0.0% | 254 | $2.00/Mtok |
+
+Without caching $45.9178 (**5.3x**, 81% saved). Naive context-meter estimate $0.7276,
+understating **11.9x**. Peak context 363,818; cumulative 21,690,881; **re-read factor
+59.6x**. Hit rate 97.6%. Read rate recovered from billing **$0.200/Mtok, r2 = 1.000**;
+breakpoint advancing True. Cumulative cost vs turn: linear r2 0.872, **quadratic r2 0.974**.
+
+#### The output-share crossover — measured across four session lengths
+
+| workload | turns | output share | cache-read share |
+|---|---|---|---|
+| minesweeper | 6 | **63.6%** | 21.3% |
+| snake | 8 | 51.4% | 32.2% |
+| snake | 14 | **36.7%** | **48.3%** |
+
+**"Output dominates an agent bill" is a short-session artifact.** As a session lengthens
+the bill shifts monotonically toward **re-reading the conversation**: by 14 turns, cache
+reads are the largest single bucket. The naive-estimate error grows the same way
+(8.3x at 6 turns -> 11.9x at 14), because it prices one context rather than the tens of
+millions of tokens actually re-read.
+
+#### One miss, and it was not the clock
+
+**1 miss / 127 requests**, in an arm that by construction should never miss. A request
+timed out twice and retried, landing 1809s after its first attempt — 26 minutes after the
+prefix it needed had expired. One request, **$0.48578**, 160,767 tokens rewritten at 1.25x
+instead of read at 0.1x. Full analysis in `CACHECOST_METHODOLOGY.md` §8a, including the
+instrument bug it exposed (`gap` is timed from the first attempt, so it under-reports the
+true clock distance whenever a retry happens, and can falsely certify a miss as M1).
+
+#### Not exercised
+
+`--until-complete` did **not** fire: `GAME COMPLETE` appears zero times. The run ended at
+14 turns because turn 13 exhausted `MAX_ROUNDS_PER_TURN`, i.e. the safety path, not the
+model's own judgement. The flag remains unproven against a live model.
+
+
+### Snake, open-ended, `sawtooth` treatment — 16 turns (2026-08-30)
+
+`--task snake --until-complete --max-turns 16 --policy sawtooth --idle 420 --ttl 5m`
+
+16 user turns -> **161 API requests**, 299.5 min, **suite green**, billed **$24.9446**
+(price card agreement 100.00%, worst-case error $0.000000).
+
+| Bucket | Cost | Share | Tokens | Rate |
+|---|---|---|---|---|
+| **cache writes** | **$13.7624** | **55.2%** | 5,504,954 | $2.50/Mtok |
+| cache reads | $6.9082 | 27.7% | 34,541,036 | $0.20/Mtok |
+| output | $4.2734 | 17.1% | 427,338 | $10.00/Mtok |
+| uncached input | $0.0006 | 0.0% | 322 | $2.00/Mtok |
+
+Peak context 478,753; cumulative 40,473,650; **re-read factor 84.5x**. Hit rate **86.3%**.
+Naive estimate $0.9575, understating **26.1x**. Read rate recovered from billing
+**$0.200/Mtok, r2 = 1.000**; breakpoint advancing True. Cumulative cost vs turn: linear
+r2 0.917, **quadratic r2 0.985**.
+
+#### The pair
+
+| | busy control | sawtooth |
+|---|---|---|
+| turns | 14 | 16 |
+| requests | 127 | 161 |
+| billed | **$8.6371** | **$24.9446** |
+| cache misses | **1 / 127** | **20 / 161** |
+| hit rate | 97.6% | 86.3% |
+| peak context | 363,818 | 478,753 |
+| re-read factor | 59.6x | 84.5x |
+| naive understatement | 11.9x | 26.1x |
+| **cache-write share of bill** | **15.0%** | **55.2%** |
+
+**The bucket split inverts.** In the paused run the largest line on the invoice is
+*rewriting a cache that keeps dying* — 5,504,954 write tokens against the control's
+518,175, a **10.6x** difference on the same workload.
+
+#### Miss attribution
+
+| cause | misses | wasted |
+|---|---|---|
+| clock expiry (the manipulated variable) | 16 | **$8.3948** |
+| client retry storm | 4 | $3.2161 |
+| **total** | **20** | **$11.6110** |
+
+Waste is `context x (2.50 - 0.20)/1e6` — the write-minus-read spread on the rewritten
+prefix. Per-miss waste scaled from **$0.0145** at 6,314 tokens to **$0.9888** at 429,899.
+The largest single request measured: **$1.09994**.
+
+#### Caveat — the arms are not length-matched
+
+`--until-complete` let each arm stop on its own, and they stopped at different lengths
+(14 vs 16 turns). **The $8.64 -> $24.94 gap is therefore NOT attributable to the clock
+alone**; part of it is two extra turns at 400k+ context, where every request is dear.
+The length-independent results are the ones to quote: the **miss count** (1 vs 20), the
+**hit rate** (97.6% vs 86.3%), the **write-share inversion** (15.0% vs 55.2%), and the
+**per-miss waste curve**. A clean cost delta needs both arms re-run at a fixed `--turns N`.
+
+#### Retry storms — six across the pair
+
+Misses arriving *inside* the TTL, caused by a request timing out and retrying past the
+prefix's lifetime: at 160,769 (busy) and 288,899 / 320,369 / 359,151 / 429,899 (sawtooth),
+plus one earlier. **Every occurrence above 150k context.** See `CACHECOST_METHODOLOGY.md` 8a.
+
+A mid-run hypothesis that the cache had a *maximum* prefix size (two misses at ~430k) was
+**disproved**: request 160 read back **478,679 tokens** cleanly. The 430k misses were retries.

@@ -55,6 +55,7 @@ footnote (prompt-caching + answer verbosity move it around); don't lead with cos
 | `compaction.py` / `compactor.py` | The cap-and-rot / self-compaction experiment machinery. |
 | `report.py` | `write_csv` + `plot` (pandas + matplotlib). |
 | `compare.py` | Cross-run comparison charts. |
+| `cachecost/` | **Prompt-cache economics.** `pricing.py` (published price card + the 0.1×/1.25×/2× multipliers), `usage.py` (per-request/session cost arithmetic, frozen), `scenarios.py` (cache-lifecycle simulator), `claims.py` (the 30-claim ledger with executable verdicts), `verify.py` (CLI). Deterministic, no network. Findings in `CACHE_CLAIMS.md`. |
 
 ## How to run
 
@@ -82,7 +83,7 @@ Each run prints the arc and writes `results/<tag>.csv` + `results/<tag>.png`. Ke
 ## Testing
 
 ```bash
-pytest          # 101 test functions, deterministic, no network needed
+pytest          # 186 tests, deterministic, no network needed
 ```
 
 Live Attestor tests are gated behind `CONTEXT_CLOCK_LIVE_ATTESTOR=1` (and `ATTESTOR_URL`) and are
