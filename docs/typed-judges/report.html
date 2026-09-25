@@ -71,12 +71,12 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:f
 </style>
 </head>
 <body>
-<nav class="nav"><div class="in"><b>Typed Judges Benchmark</b><ul><li><a href="#measured">Measured</a></li><li><a href="#questions">Questions</a></li><li><a href="#state">State</a></li><li><a href="#grading">Grading</a></li><li><a href="#results">Results</a></li><li><a href="#replay">Replay</a></li><li><a href="#findings">Findings</a></li></ul></div></nav>
+<nav class="nav"><div class="in"><b>Typed Judges Benchmark</b><ul><li><a href="#measured">Measured</a></li><li><a href="#questions">Questions</a></li><li><a href="#state">State</a></li><li><a href="#grading">Grading</a></li><li><a href="#results">Results</a></li><li><a href="#replay">Replay</a></li><li><a href="#claude">Claude</a></li><li><a href="#findings">Findings</a></li></ul></div></nav>
 <main class="wrap">
 <div class="read">
 <h1>Typed decision models as code-review judges</h1>
 <p class="sub">Jev and every open-source Jev-class alternative, asked the same typed questions about the same 150 review cases, scored against verdicts fixed before any of them ran.</p>
-<p class="meta">Nine systems · five reviewer roles · 1,834 questions · 2026-09-24</p>
+<p class="meta">Nine systems · five reviewer roles · 1,834 questions · Claude as the reference · 2026-09-25</p>
 <div class="hero" aria-label="A state and typed questions go in; calibrated probabilities come out">
 <svg viewBox="0 0 900 250" role="img">
   <rect class="state" x="10" y="30" width="250" height="190" rx="14"/>
@@ -228,6 +228,39 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:f
   <div class="row"><div><span class="k">What the replay settles, and what it cannot.</span><span class="d">On identical input the two are not interchangeable: the disagreement is a reader against a near-constant answer, not noise between two readers. Whether Laya's errors are independent of a text-generating judge's on live work, the only reason to keep a cheap second vote, needs the live disagreement rate, not more corpus questions.</span></div><div class="v">$0.07<small>Jev, all 1,834</small></div></div>
 </div>
 </div>
+
+<div class="read">
+<h2 id="claude">All 1,834 questions again, with Claude as the reference</h2>
+<p>The replay above shows Jev and Laya disagree; it does not say who is right. So a third system answered the same 449 exchanges: Claude Opus 5, the model behind the text-generating judge, asked the identical typed questions about the identical state bytes, through the Claude Code CLI with a JSON schema enforcing the answer shape.</p>
+<p>Of the 1,834 questions, 726 have a known right answer, because the case kind fixes it: the 269 defect yes/no questions, the 269 verdicts, the 128 per-test labels, and for plan review whether any lens says block, 60 in all. Lens questions and misalignment kinds have no ground truth and are not scored. Accuracy is the probability against 0.5; Brier is the squared error of the probability, lower is better.</p>
+</div>
+<div class="panel stats"><div><div class="n">91.5%</div><div class="l">Claude Opus 5, right on the 726 gradable questions, Brier 0.066</div></div><div><div class="n">85.4%</div><div class="l">Jev, Brier 0.107, at about one three-thousandth of the price</div></div><div><div class="n">63.4%</div><div class="l">Laya, Brier 0.249, the same probability on clean and defective cases</div></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role</th><th>graded</th><th>Claude acc / Brier</th><th>Jev acc / Brier</th><th>Laya acc / Brier</th></tr></thead><tbody>
+<tr><th>test reviewer</th><td>128</td><td class="hi">0.95 / 0.04</td><td>0.90 / 0.08</td><td>0.63 / 0.26</td></tr><tr><th>task alignment</th><td>180</td><td class="hi">0.97 / 0.04</td><td>0.92 / 0.06</td><td>0.66 / 0.23</td></tr><tr><th>code review</th><td>180</td><td class="hi">0.92 / 0.07</td><td>0.88 / 0.10</td><td>0.68 / 0.23</td></tr><tr><th>spec alignment</th><td>178</td><td class="hi">0.88 / 0.08</td><td>0.76 / 0.16</td><td>0.67 / 0.24</td></tr><tr><th>plan review</th><td>60</td><td class="hi">0.75 / 0.18</td><td class="hi">0.75 / 0.18</td><td>0.33 / 0.36</td></tr><tr><th>all</th><td>726</td><td class="hi">0.915 / 0.066</td><td>0.854 / 0.107</td><td>0.634 / 0.249</td></tr>
+</tbody></table></div></div>
+<div class="read"><h3>Probability of a defect, clean → defective</h3><p>A system that reads the case has a low first number and a high second.</p></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role</th><th>Claude</th><th>Jev</th><th>Laya</th></tr></thead><tbody>
+<tr><th>test reviewer</th><td><span class="bars"><i style="--v:0.22"></i><i class="d" style="--v:0.96"></i></span>0.22 → 0.96</td><td><span class="bars"><i style="--v:0.15"></i><i class="d" style="--v:0.86"></i></span>0.15 → 0.86</td><td><span class="bars"><i style="--v:0.75"></i><i class="d" style="--v:0.76"></i></span>0.75 → 0.76</td></tr><tr><th>task alignment</th><td><span class="bars"><i style="--v:0.21"></i><i class="d" style="--v:0.90"></i></span>0.21 → 0.90</td><td><span class="bars"><i style="--v:0.15"></i><i class="d" style="--v:0.83"></i></span>0.15 → 0.83</td><td><span class="bars"><i style="--v:0.60"></i><i class="d" style="--v:0.59"></i></span>0.60 → 0.59</td></tr><tr><th>code review</th><td><span class="bars"><i style="--v:0.38"></i><i class="d" style="--v:0.94"></i></span>0.38 → 0.94</td><td><span class="bars"><i style="--v:0.33"></i><i class="d" style="--v:0.78"></i></span>0.33 → 0.78</td><td><span class="bars"><i style="--v:0.69"></i><i class="d" style="--v:0.69"></i></span>0.69 → 0.69</td></tr><tr><th>spec alignment</th><td><span class="bars"><i style="--v:0.46"></i><i class="d" style="--v:0.96"></i></span>0.46 → 0.96</td><td><span class="bars"><i style="--v:0.61"></i><i class="d" style="--v:0.90"></i></span>0.61 → 0.90</td><td><span class="bars"><i style="--v:0.68"></i><i class="d" style="--v:0.66"></i></span>0.68 → 0.66</td></tr><tr><th>plan review</th><td><span class="bars"><i style="--v:0.65"></i><i class="d" style="--v:0.82"></i></span>0.65 → 0.82</td><td><span class="bars"><i style="--v:0.66"></i><i class="d" style="--v:0.81"></i></span>0.66 → 0.81</td><td><span class="bars"><i style="--v:0.29"></i><i class="d" style="--v:0.29"></i></span>0.29 → 0.29</td></tr>
+</tbody></table></div></div>
+<div class="read"><h3>Who got each question right</h3></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>correct</th><th>of 726</th></tr></thead><tbody><tr><th>all three</th><td>400</td></tr><tr><th>Claude and Jev</th><td>190</td></tr><tr><th>Claude and Laya</th><td>41</td></tr><tr><th>Claude only</th><td>33</td></tr><tr><th>Jev only</th><td>27</td></tr><tr><th>none</th><td>16</td></tr><tr><th>Laya only</th><td>16</td></tr><tr><th>Jev and Laya</th><td>3</td></tr></tbody></table></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>pair</th><th>same side</th><th>both wrong</th></tr></thead><tbody><tr><th>Claude and Jev</th><td>622 / 726 · 86%</td><td>32</td></tr><tr><th>Claude and Laya</th><td>484 / 726 · 67%</td><td>43</td></tr><tr><th>Jev and Laya</th><td>452 / 726 · 62%</td><td>49</td></tr></tbody></table></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th></th><th>Claude Opus 5</th><th>Jev</th><th>Laya</th></tr></thead><tbody>
+<tr><th>price, all 1,834 questions</th><td>$194 API-equivalent, run on a subscription, not charged</td><td class="hi">≈ $0.07</td><td class="hi">$0, local</td></tr>
+<tr><th>median time per exchange</th><td>19.7 s</td><td class="hi">0.35 s</td><td>0.45 s</td></tr>
+<tr><th>wall clock, 449 exchanges</th><td>91 min, four at a time, with rate-limit pauses</td><td class="hi">164 s</td><td>221 s</td></tr>
+<tr><th>errors</th><td>0</td><td>0</td><td>0</td></tr>
+</tbody></table></div></div>
+<div class="read">
+<div class="panel">
+  <div class="row"><div><span class="k">Claude is the clear winner on correctness.</span><span class="d">First or tied on every role, and a Brier score 40% lower than Jev's. The gap is widest on spec alignment, 0.88 against 0.76, where Jev puts 0.61 on clean specs and Claude 0.46.</span></div><div class="v">0.915<small>Claude accuracy</small></div></div>
+  <div class="row"><div><span class="k">Jev is the clear winner on value.</span><span class="d">93% of Claude's accuracy for about one three-thousandth of the price, fifty times faster. On test review and task alignment it is within five points of Claude.</span></div><div class="v">93%<small>of Claude, Jev</small></div></div>
+  <div class="row"><div><span class="k">Laya does not read the case.</span><span class="d">Its probability of a defect is the same on clean and defective cases in every role, and it is right alone on only 16 questions.</span></div><div class="v">0.634<small>Laya accuracy</small></div></div>
+  <div class="row"><div><span class="k">Plan review is a tie the question forces.</span><span class="d">Claude and Jev each flag 15 of the 20 clean plans and miss none of the defective ones. "Any of seven lenses says block" is too easy to trip; the question is the limit, not the model.</span></div><div class="v">15 / 20<small>clean plans flagged, both</small></div></div>
+  <div class="row"><div><span class="k">Jev's errors overlap Claude's, but not completely.</span><span class="d">32 questions are missed by both. Jev alone catches 27 that Claude misses, so as a second opinion to Claude it would add a little, not a lot.</span></div><div class="v">32<small>missed by both</small></div></div>
+  <div class="row"><div><span class="k">This is Claude in the typed judges' seat.</span><span class="d">Here it answers typed questions without tools, one reply per exchange. The production judge reads files with tools and writes findings; on the test-review corpus it scored 30 of 30.</span></div><div class="v">30/30<small>production judge, test review</small></div></div>
+</div>
+</div>
 <div class="read">
 <h2>Why a typed judge at all</h2>
 <p>A text-generating judge costs about $0.57 and 45 seconds per case. Re-running a thirty-case corpus after a prompt edit is $17 and 25 minutes; recalibrating five roles is about $90 and two and a half hours. Jev answers a corpus for half a cent in twelve seconds, the local models for nothing in a similar time. That is what makes prompt iteration on judges affordable, whichever typed model is chosen.</p>
@@ -240,10 +273,11 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:f
 <li><b>Nimble 9B reads the test but is starved.</b> Its 2,048-token limit removes the brief and criteria on every role but the minimal one; it is the only open model with a calibrated per-test judgement.</li>
 <li><b>Kev 4B is confident and wrong on diffs.</b> Decisive probabilities, near-zero probability of a defect on planted defects in the alignment and code roles.</li>
 <li><b>Jev is the reference among typed models.</b> Accuracy 0.89 to 0.97 with Brier 0.05 to 0.11 on four roles, and the only model whose lens answers stay low on clean tests.</li>
+<li><b>Claude is the most accurate; Jev is the best value.</b> On all 1,834 replayed questions, Claude is right on 91.5% of the 726 gradable ones, Jev on 85.4%, Laya on 63.4%. Jev costs about one three-thousandth as much and answers fifty times faster.</li>
 <li><b>Two judges are worth their cost only if their errors are independent.</b> No case was missed by both Jev and the text-generating judge; that is a hint, and the real measurement is the disagreement rate on live runs, which this benchmark does not contain.</li>
 </ol>
 
-<div class="cta"><h2>Reproducing</h2><p>The harness records, for every case, the questions, the raw answers, the cost, the time and the state hash, pinned to the digest of the judge definition; the state text is stored once by hash. A new system is a transport and a model name. It answers the same questions on the same bytes and is compared case by case and question by question against any earlier record. Regrading is a re-read of stored replies, not a re-run.</p><p><a href="REPORT.md" style="color:#fff;text-decoration:underline">Read the full written report</a> · data summaries in <code>data/</code></p></div>
+<div class="cta"><h2>Reproducing</h2><p>The harness records, for every case, the questions, the raw answers, the cost, the time and the state hash, pinned to the digest of the judge definition; the state text is stored once by hash. A new system is a transport and a model name. It answers the same questions on the same bytes and is compared case by case and question by question against any earlier record. Regrading is a re-read of stored replies, not a re-run.</p><p><a href="REPORT.md" style="color:#fff;text-decoration:underline">Read the full written report</a> · data summaries in <code>data/</code>, including the three-way comparison with Claude</p></div>
 
 <div class="hair"></div>
 <p class="meta">Limitations: thirty cases per role, hand-authored; run-to-run variance of about one case in thirty for the hosted model; the diff-role grader still admits the flag-everything route; local latencies were measured with other models loaded; Nimble and Kev 4B ran on a shared free-tier GPU with capped or reordered state; NanoJev was not run.</p>

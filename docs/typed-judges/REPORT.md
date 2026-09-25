@@ -11,6 +11,8 @@ We asked nine systems the same typed questions about the same code-review states
 
 On the discriminating measure, probability of a defect scored against the known verdict, **Jev (TypeSafe) is the only system that reads the case on four of five roles** (accuracy 0.89 to 0.97, Brier 0.05 to 0.11). Bespoke Nimble 9B reads the test-review role (0.83) but sees only a fraction of the state. Laya, Von, Kev 0.8B, SemIf and Rizzo Flow put the same probability on clean and defective cases. Kev 4B answers confidently and is near chance on the diff-based roles.
 
+**Against Claude as the reference**, all 1,834 replayed questions and the 726 with a known answer: Claude Opus 5 is right on 91.5% (Brier 0.066), Jev on 85.4% (0.107), Laya on 63.4% (0.249). Claude wins on correctness in every role except plan review, where it ties Jev. Jev wins on value: 93% of Claude's accuracy at about one three-thousandth of the price and fifty times the speed.
+
 ## What was measured
 
 A code-review pipeline has five reviewer roles that each answer a bounded question about a piece of state. For each role we hold a corpus of 30 cases with a verdict fixed before any system ran:
@@ -160,6 +162,66 @@ Question kinds among the 1,834: 989 lens yes/no, 269 defect yes/no, 269 verdict 
 
 What the replay settles: on identical input the two kept models are not interchangeable, and the disagreement is not noise between two readers but the difference between a reader and a near-constant answer. What it does not settle: whether Laya's errors are *independent* of a text-generating judge's on live work, which is the only reason to keep a cheap second vote. That needs the live disagreement rate, not more corpus questions.
 
+## All 1,834 questions again, with Claude as the reference
+
+The replay above shows Jev and Laya disagree; it does not say who is right. So a third system answered the same 449 exchanges: **Claude Opus 5**, the model behind the text-generating judge, asked the identical typed questions about the identical state bytes. It ran through the Claude Code CLI in print mode with a JSON schema enforcing the answer shape, the same instruction the typed models get implicitly ("answer every question with a probability, no prose"), and the state inlined exactly as the typed models saw it.
+
+**What can be graded.** Of the 1,834 questions, 726 have a known right answer, because the case kind fixes it: a clean case has no defect, a planted or argued case has one. Those are the 269 "is there a defect a reviewer must block" yes/no questions, the 269 verdict choices (pass, or not), the 128 per-test labels (proves a requirement, or not), and for plan review one derived answer per exchange, 60 in all: does any lens say block. The 989 lens questions and 179 misalignment-kind choices have no ground truth and are not scored. Accuracy is the probability against 0.5; Brier is the mean squared error of the probability, lower is better.
+
+| role | graded | Claude acc / Brier | Jev acc / Brier | Laya acc / Brier |
+|---|---|---|---|---|
+| test reviewer | 128 | **0.95 / 0.04** | 0.90 / 0.08 | 0.63 / 0.26 |
+| task alignment | 180 | **0.97 / 0.04** | 0.92 / 0.06 | 0.66 / 0.24 |
+| code review | 180 | **0.92 / 0.07** | 0.88 / 0.10 | 0.68 / 0.23 |
+| spec alignment | 178 | **0.88 / 0.08** | 0.76 / 0.16 | 0.67 / 0.24 |
+| plan review | 60 | 0.75 / 0.18 | 0.75 / 0.18 | 0.33 / 0.36 |
+| **all** | **726** | **0.915 / 0.066** | **0.854 / 0.107** | **0.634 / 0.249** |
+
+Mean probability of a defect the system gave, on clean cases and on defective ones. A reader has a low first number and a high second:
+
+| role | Claude | Jev | Laya |
+|---|---|---|---|
+| test reviewer | 0.22 → 0.96 | 0.15 → 0.86 | 0.75 → 0.76 |
+| task alignment | 0.21 → 0.90 | 0.15 → 0.83 | 0.60 → 0.59 |
+| code review | 0.38 → 0.94 | 0.33 → 0.78 | 0.69 → 0.69 |
+| spec alignment | 0.46 → 0.96 | 0.61 → 0.90 | 0.68 → 0.66 |
+| plan review | 0.65 → 0.82 | 0.66 → 0.81 | 0.29 → 0.29 |
+
+Who got each of the 726 right:
+
+| correct | questions |
+|---|---|
+| all three | 400 |
+| Claude and Jev | 190 |
+| Claude and Laya | 41 |
+| Claude only | 33 |
+| Jev only | 27 |
+| Laya only | 16 |
+| Jev and Laya | 3 |
+| none | 16 |
+
+| pair | same side | both wrong |
+|---|---|---|
+| Claude and Jev | 622 / 726 (86%) | 32 |
+| Claude and Laya | 484 / 726 (67%) | 43 |
+| Jev and Laya | 452 / 726 (62%) | 49 |
+
+| | Claude Opus 5 | Jev | Laya |
+|---|---|---|---|
+| price for all 1,834 questions | $194 API-equivalent (run on a subscription, not charged) | ≈ $0.07 | $0, local |
+| median time per exchange | 19.7 s | 0.35 s | 0.45 s |
+| wall clock, 449 exchanges | 91 min, four at a time, with rate-limit pauses | under 3 min | under 4 min |
+| errors | 0 | 0 | 0 |
+
+**Analysis.**
+
+- **Claude is the clear winner on correctness.** It is first or tied on every role, 0.915 accuracy against Jev's 0.854 and Laya's 0.634, and its Brier score is 40% lower than Jev's. The gap is widest on spec alignment, 0.88 against 0.76, where Jev puts 0.61 on clean specs and Claude 0.46.
+- **Jev is the clear winner on value.** It gets 93% of Claude's accuracy for about one three-thousandth of the price and at fifty times the speed. On the two roles that matter most for a cheap first vote, test review and task alignment, it is within five points of Claude.
+- **Laya does not read the case.** Its probability of a defect is the same on clean and defective cases in every role, and it is right alone on only 16 questions. Its 0.634 is what a near-constant answer earns on this mix.
+- **Plan review is a tie because the question cannot separate them.** Claude and Jev each flag 15 of the 20 clean plans and miss none of the defective ones. "Any of seven lenses says block" is too easy to trip; the question, not the model, is the limit there.
+- **Jev's errors overlap Claude's more than Laya's do, but not completely.** 32 questions are missed by both Claude and Jev. Jev alone catches 27 that Claude misses. A second vote only helps where errors are independent, and 27 against 32 says Jev as a second opinion to Claude would add a little, not a lot.
+- **This is Claude in the typed judges' seat, not the production judge.** Here it answers typed questions without tools, one reply per exchange. The production judge reads files with tools and writes findings; on the test-review corpus it scored 30 of 30.
+
 ## Cost and time, for calibration loops
 
 The reason to want a typed judge at all: a text-generating judge costs about $0.57 and 45 seconds per case, so re-running a 30-case corpus after a prompt edit is $17 and 25 minutes, and recalibrating five roles is about $90 and two and a half hours. Jev answers a corpus for half a cent in twelve seconds; the local models for nothing in a similar time. That is what makes prompt iteration on judges affordable, independent of which typed model is chosen.
@@ -172,7 +234,8 @@ The reason to want a typed judge at all: a text-generating judge costs about $0.
 4. **Nimble 9B reads the test but is starved.** Its 2,048-token limit removes the brief and criteria on every role but the minimal one; it is the only open model with a calibrated per-test judgement (Brier 0.15).
 5. **Kev 4B is confident and wrong on diffs.** Decisive probabilities, near-zero P(defect) on planted defects in the alignment and code roles.
 6. **Jev is the reference among typed models.** Accuracy 0.89 to 0.97 with Brier 0.05 to 0.11 on four roles, one shared miss with no other system across 150 cases, and the only model whose lens answers stay low on clean tests.
-7. **Two judges are worth their cost only if their errors are independent.** Zero cases were missed by both Jev and the text-generating judge on any corpus; that is a hint, not proof, and the real measurement is the disagreement rate on live runs, which this benchmark does not contain.
+7. **Claude is the most accurate typed-question answerer; Jev is the best value.** Replayed on all 1,834 questions, Claude is right on 91.5% of the 726 gradable ones, Jev on 85.4%, Laya on 63.4%. Jev costs about one three-thousandth as much and answers fifty times faster.
+8. **Two judges are worth their cost only if their errors are independent.** Zero cases were missed by both Jev and the text-generating judge on any corpus; that is a hint, not proof, and the real measurement is the disagreement rate on live runs, which this benchmark does not contain.
 
 ## Limitations
 
@@ -184,3 +247,4 @@ The harness records, for every case, the questions, the raw answers, the cost, t
 
 - `data/scores-and-calibration.json`: per role and system, graded score, clean cases passed, accuracy, Brier, ECE, mean P(defect) by kind, median latency, cost.
 - `data/replay-head-to-head.json`: the Jev-versus-Laya replay on identical questions.
+- `data/three-way-with-claude.json`: Claude, Jev and Laya on the 726 gradable questions, by role and by question kind, pairwise agreement, and who got each question right.
