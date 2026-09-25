@@ -135,6 +135,31 @@ All 449 recorded exchanges were replayed through both in one sitting, 1,834 ques
 | spec alignment | 0.72 / 0.18 / 0.70 → 0.91 | 0.67 / 0.23 / 0.70 → 0.68 |
 | plan review | 0.33 / 0.36 / 0.14 → 0.28 | 0.33 / 0.42 / 0.22 → 0.23 |
 
+## The 3,306 recorded questions, replayed through the two kept models
+
+Across the benchmark, nine systems answered 3,306 questions in total. Most of those are the *same* question about the *same* case, asked of different systems, so the recorded exchanges were deduplicated by state hash and question set: **449 unique exchanges, 1,834 unique questions.** Each case appears up to three times because three state variants were recorded, the prompt-first full state Jev saw, the evidence-first ordering the small models saw, and the length-capped state Nimble saw, plus the test-file-and-brief variant for the test reviewer. Two models were then asked every one of the 1,834 in one sitting: Jev, the hosted reference, and Laya, the free local model kept alongside it. Byte-identical input, every raw answer recorded.
+
+| role | choice questions: same label | yes/no questions: same side | mean gap in yes/no probability |
+|---|---|---|---|
+| test reviewer | 36 / 128 (28%) | 79 / 120 (66%) | 0.20 |
+| task alignment | 96 / 180 (53%) | 115 / 180 (64%) | 0.20 |
+| code review | 44 / 90 (49%) | 225 / 360 (63%) | 0.20 |
+| spec alignment | 51 / 178 (29%) | 170 / 178 (96%) | 0.15 |
+| plan review | 95 / 420 (23%) | — | — |
+| **all** | **32%** | **70%** | **0.19** |
+
+Question kinds among the 1,834: 989 lens yes/no, 269 defect yes/no, 269 verdict choices, 179 misalignment-kind choices, 128 per-test choices.
+
+**Analysis.**
+
+- **The agreement is mostly on the easy side.** The 96% same-side rate on spec alignment is not two judges seeing the same thing: both put a high probability of a defect on nearly every spec case, clean ones included (Jev 0.70 on clean, Laya 0.70). Agreement where both say yes to everything carries no information; it is the disagreements on clean cases that would.
+- **Laya's per-test labels are close to a fixed answer.** Of its 128 per-test choices, 78 are `implementation_detail`, 26 `wrong_requirement`, 24 `requirement`, and never `nothing`. Jev's spread is 56 / 26 / 23 / 23 across the four labels, tracking the cases. Laya's mean top-option probability on choice questions is 0.39, barely above the 0.25 of a uniform guess over four options; Jev's is 0.74.
+- **Laya's yes/no answers move less.** Standard deviation of its noul probabilities is 0.15 across all 838, range 0.22 to 0.91; Jev's is 0.20, range 0.12 to 0.98. Neither is extreme, but Laya's movement is not correlated with the case kind, as the per-role P(defect) columns above show.
+- **Plan review is where both are lost and disagree most**: 23% label agreement over 420 per-lens choices, and neither reads the plan.
+- **Cost of the replay.** Jev: about $0.07 for 1,834 questions at a median 0.35 s per exchange. Laya: $0, median 0.45 s per exchange on a laptop CPU.
+
+What the replay settles: on identical input the two kept models are not interchangeable, and the disagreement is not noise between two readers but the difference between a reader and a near-constant answer. What it does not settle: whether Laya's errors are *independent* of a text-generating judge's on live work, which is the only reason to keep a cheap second vote. That needs the live disagreement rate, not more corpus questions.
+
 ## Cost and time, for calibration loops
 
 The reason to want a typed judge at all: a text-generating judge costs about $0.57 and 45 seconds per case, so re-running a 30-case corpus after a prompt edit is $17 and 25 minutes, and recalibrating five roles is about $90 and two and a half hours. Jev answers a corpus for half a cent in twelve seconds; the local models for nothing in a similar time. That is what makes prompt iteration on judges affordable, independent of which typed model is chosen.

@@ -71,7 +71,7 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:f
 </style>
 </head>
 <body>
-<nav class="nav"><div class="in"><b>Typed Judges Benchmark</b><ul><li><a href="#measured">Measured</a></li><li><a href="#questions">Questions</a></li><li><a href="#state">State</a></li><li><a href="#grading">Grading</a></li><li><a href="#results">Results</a></li><li><a href="#findings">Findings</a></li></ul></div></nav>
+<nav class="nav"><div class="in"><b>Typed Judges Benchmark</b><ul><li><a href="#measured">Measured</a></li><li><a href="#questions">Questions</a></li><li><a href="#state">State</a></li><li><a href="#grading">Grading</a></li><li><a href="#results">Results</a></li><li><a href="#replay">Replay</a></li><li><a href="#findings">Findings</a></li></ul></div></nav>
 <main class="wrap">
 <div class="read">
 <h1>Typed decision models as code-review judges</h1>
@@ -205,6 +205,29 @@ a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:f
 <tr><th>plan review</th><td>0.33</td><td>0.36</td><td><span class="bars"><i style="--v:0.14"></i><i class="d" style="--v:0.28"></i></span>0.14 → 0.28</td><td>0.33</td><td>0.42</td><td><span class="bars"><i style="--v:0.22"></i><i class="d" style="--v:0.23"></i></span>0.22 → 0.23</td></tr>
 </tbody></table></div></div>
 
+
+<div class="read">
+<h2 id="replay">The 3,306 recorded questions, replayed through the two kept models</h2>
+<p>Nine systems answered 3,306 questions in total, most of them the same question about the same case asked of different systems. Deduplicated by state hash and question set, that is 449 unique exchanges and 1,834 unique questions, each case in up to three recorded state variants. Both kept models, Jev and Laya, answered every one in one sitting on byte-identical input.</p>
+</div>
+<div class="panel stats"><div><div class="n">3,306</div><div class="l">questions answered across nine systems</div></div><div><div class="n">1,834</div><div class="l">unique questions after deduplication by state hash</div></div><div><div class="n">2</div><div class="l">models asked all of them: Jev and Laya</div></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role</th><th>choice: same label</th><th>yes/no: same side</th><th>mean yes/no gap</th></tr></thead><tbody>
+<tr><th>test reviewer</th><td>36 / 128 · 28%</td><td>79 / 120 · 66%</td><td>0.20</td></tr>
+<tr><th>task alignment</th><td>96 / 180 · 53%</td><td>115 / 180 · 64%</td><td>0.20</td></tr>
+<tr><th>code review</th><td>44 / 90 · 49%</td><td>225 / 360 · 63%</td><td>0.20</td></tr>
+<tr><th>spec alignment</th><td>51 / 178 · 29%</td><td>170 / 178 · 96%</td><td>0.15</td></tr>
+<tr><th>plan review</th><td>95 / 420 · 23%</td><td>—</td><td>—</td></tr>
+<tr><th>all</th><td class="hi">32%</td><td class="hi">70%</td><td>0.19</td></tr>
+</tbody></table></div></div>
+<div class="read">
+<div class="panel">
+  <div class="row"><div><span class="k">Agreement is mostly on the easy side.</span><span class="d">The 96% on spec alignment is both models putting a high probability of a defect on nearly every spec case, clean ones included, 0.70 each. Agreement where both say yes to everything carries no information.</span></div><div class="v">96%<small>spec, same side</small></div></div>
+  <div class="row"><div><span class="k">Laya's per-test labels are close to a fixed answer.</span><span class="d">Of 128 per-test choices, 78 are "implementation detail" and none is "nothing". Jev's labels spread 56 / 26 / 23 / 23 and track the cases. Laya's mean top-option probability is 0.39, barely above a uniform guess over four options; Jev's is 0.74.</span></div><div class="v">78 / 128<small>one label, Laya</small></div></div>
+  <div class="row"><div><span class="k">Laya's yes/no answers move less, and not with the case.</span><span class="d">Standard deviation 0.15 across 838 yes/no answers against Jev's 0.20; the movement it does have is uncorrelated with clean versus defective.</span></div><div class="v">0.15 vs 0.20<small>stdev of P(yes)</small></div></div>
+  <div class="row"><div><span class="k">Plan review is where both are lost.</span><span class="d">23% label agreement over 420 per-lens choices; neither reads the plan, and the grader wants a task id a per-lens judge cannot name.</span></div><div class="v">23%<small>plan, same label</small></div></div>
+  <div class="row"><div><span class="k">What the replay settles, and what it cannot.</span><span class="d">On identical input the two are not interchangeable: the disagreement is a reader against a near-constant answer, not noise between two readers. Whether Laya's errors are independent of a text-generating judge's on live work, the only reason to keep a cheap second vote, needs the live disagreement rate, not more corpus questions.</span></div><div class="v">$0.07<small>Jev, all 1,834</small></div></div>
+</div>
+</div>
 <div class="read">
 <h2>Why a typed judge at all</h2>
 <p>A text-generating judge costs about $0.57 and 45 seconds per case. Re-running a thirty-case corpus after a prompt edit is $17 and 25 minutes; recalibrating five roles is about $90 and two and a half hours. Jev answers a corpus for half a cent in twelve seconds, the local models for nothing in a similar time. That is what makes prompt iteration on judges affordable, whichever typed model is chosen.</p>
