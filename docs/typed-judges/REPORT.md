@@ -11,7 +11,7 @@ We asked nine systems the same typed questions about the same code-review states
 
 On the discriminating measure, probability of a defect scored against the known verdict, **Jev (TypeSafe) is the only system that reads the case on four of five roles** (accuracy 0.89 to 0.97, Brier 0.05 to 0.11). Bespoke Nimble 9B reads the test-review role (0.83) but sees only a fraction of the state. Laya, Von, Kev 0.8B, SemIf and Rizzo Flow put the same probability on clean and defective cases. Kev 4B answers confidently and is near chance on the diff-based roles.
 
-**Against Claude as the reference**, all 1,834 replayed questions and the 726 with a known answer: Claude Opus 5 is right on 91.5% (Brier 0.066), Jev on 85.4% (0.107), Laya on 63.4% (0.249). Claude wins on correctness in every role except plan review, where it ties Jev. Jev wins on value: 93% of Claude's accuracy at about one three-thousandth of the price and fifty times the speed.
+**Against Claude as the reference**, all 1,834 replayed questions and the 726 with a known answer: Claude Opus 5 (`claude-opus-5`, not the newer Opus 5.5) is right on 91.5% (Brier 0.066), Jev on 85.4% (0.107), Laya on 63.4% (0.249). Claude wins on correctness in every role except plan review, where it ties Jev. Jev wins on value: 93% of Claude's accuracy at about one three-thousandth of the price and fifty times the speed.
 
 ## What was measured
 
@@ -166,6 +166,8 @@ What the replay settles: on identical input the two kept models are not intercha
 
 The replay above shows Jev and Laya disagree; it does not say who is right. So a third system answered the same 449 exchanges: **Claude Opus 5**, the model behind the text-generating judge, asked the identical typed questions about the identical state bytes. It ran through the Claude Code CLI in print mode with a JSON schema enforcing the answer shape, the same instruction the typed models get implicitly ("answer every question with a probability, no prose"), and the state inlined exactly as the typed models saw it.
 
+**Model, exactly.** Every Claude answer in this section came from `claude-opus-5` (Claude Opus 5), requested by that ID on every call, run on 2026-09-25. It is not Claude Opus 5.5 or Claude Fable 5.1, the newer and more capable Claude models available on that date; they were not tested, and they may score higher. Read the Claude numbers as Opus 5's, not as the best Claude can do.
+
 **What can be graded.** Of the 1,834 questions, 726 have a known right answer, because the case kind fixes it: a clean case has no defect, a planted or argued case has one. Those are the 269 "is there a defect a reviewer must block" yes/no questions, the 269 verdict choices (pass, or not), the 128 per-test labels (proves a requirement, or not), and for plan review one derived answer per exchange, 60 in all: does any lens say block. The 989 lens questions and 179 misalignment-kind choices have no ground truth and are not scored. Accuracy is the probability against 0.5; Brier is the mean squared error of the probability, lower is better.
 
 | role | graded | Claude acc / Brier | Jev acc / Brier | Laya acc / Brier |
@@ -206,7 +208,7 @@ Who got each of the 726 right:
 | Claude and Laya | 484 / 726 (67%) | 43 |
 | Jev and Laya | 452 / 726 (62%) | 49 |
 
-| | Claude Opus 5 | Jev | Laya |
+| | Claude Opus 5 (`claude-opus-5`) | Jev | Laya |
 |---|---|---|---|
 | price for all 1,834 questions | $194 API-equivalent (run on a subscription, not charged) | ≈ $0.07 | $0, local |
 | median time per exchange | 19.7 s | 0.35 s | 0.45 s |
