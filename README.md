@@ -8,7 +8,8 @@ LLM agent burns as a conversation grows — and proves that retrieved memory cut
 > OpenRouter model. Every number below is reproducible — 99 tests, deterministic workload.
 
 **🔗 Live:** [the benchmark, visualized](https://bolnet.github.io/context-clock/) ·
-[animated deep-dive](https://bolnet.github.io/context-clock/context-clock-benchmark.html)
+[animated deep-dive](https://bolnet.github.io/context-clock/context-clock-benchmark.html) ·
+[agent token economics](https://bolnet.github.io/context-clock/agent-token-economics.html)
 
 ---
 
