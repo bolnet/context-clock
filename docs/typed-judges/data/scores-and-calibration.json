@@ -1,0 +1,457 @@
+{
+ "test_reviewer": {
+  "claude-code": {
+   "ok": 30,
+   "n": 30,
+   "pos": 10,
+   "acc": null,
+   "brier": null,
+   "ece": null,
+   "p_by_kind": {},
+   "lat": 43.23,
+   "cost": 17.2107
+  },
+  "jev": {
+   "ok": 29,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.967,
+   "brier": 0.047,
+   "ece": 0.072,
+   "p_by_kind": {
+    "negative": 0.876,
+    "positive": 0.154,
+    "pressure": 0.927
+   },
+   "lat": 0.33,
+   "cost": 0.0043
+  },
+  "laya": {
+   "ok": 20,
+   "n": 30,
+   "pos": 6,
+   "acc": 0.667,
+   "brier": 0.213,
+   "ece": 0.065,
+   "p_by_kind": {
+    "negative": 0.69,
+    "positive": 0.675,
+    "pressure": 0.717
+   },
+   "lat": 0.25,
+   "cost": 0.0
+  },
+  "kev4b": {
+   "ok": 17,
+   "n": 30,
+   "pos": 8,
+   "acc": 0.567,
+   "brier": 0.339,
+   "ece": 0.353,
+   "p_by_kind": {
+    "negative": 0.439,
+    "positive": 0.206,
+    "pressure": 0.562
+   },
+   "lat": 1.92,
+   "cost": 0.0
+  },
+  "nimble": {
+   "ok": 24,
+   "n": 30,
+   "pos": 9,
+   "acc": 0.833,
+   "brier": 0.153,
+   "ece": 0.149,
+   "p_by_kind": {
+    "negative": 0.751,
+    "positive": 0.135,
+    "pressure": 0.805
+   },
+   "lat": 1.33,
+   "cost": 0.0
+  },
+  "kev": {
+   "ok": 20,
+   "n": 30,
+   "pos": 0,
+   "acc": 0.667,
+   "brier": 0.25,
+   "ece": 0.192,
+   "p_by_kind": {
+    "negative": 0.857,
+    "positive": 0.842,
+    "pressure": 0.876
+   },
+   "lat": 4.05,
+   "cost": 0.0041
+  },
+  "semif": {
+   "ok": 20,
+   "n": 30,
+   "pos": 0,
+   "acc": 0.667,
+   "brier": 0.234,
+   "ece": 0.116,
+   "p_by_kind": {
+    "negative": 0.783,
+    "positive": 0.78,
+    "pressure": 0.785
+   },
+   "lat": 8.47,
+   "cost": 0.0
+  },
+  "von": {
+   "ok": 10,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.667,
+   "brier": 0.232,
+   "ece": 0.124,
+   "p_by_kind": {
+    "negative": 0.581,
+    "positive": 0.588,
+    "pressure": 0.583
+   },
+   "lat": 2.37,
+   "cost": 0.0
+  },
+  "rizzo": {
+   "ok": 10,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.333,
+   "brier": 0.449,
+   "ece": 0.477,
+   "p_by_kind": {
+    "negative": 0.193,
+    "positive": 0.188,
+    "pressure": 0.188
+   },
+   "lat": 3.76,
+   "cost": 0.0045
+  },
+  "kev4b.minimal": {
+   "ok": 18,
+   "n": 30,
+   "pos": 9,
+   "acc": 0.633,
+   "brier": 0.335,
+   "ece": 0.333,
+   "p_by_kind": {
+    "negative": 0.348,
+    "positive": 0.145,
+    "pressure": 0.507
+   },
+   "lat": 0.85,
+   "cost": 0.0
+  },
+  "nimble.minimal": {
+   "ok": 25,
+   "n": 30,
+   "pos": 9,
+   "acc": 0.833,
+   "brier": 0.159,
+   "ece": 0.174,
+   "p_by_kind": {
+    "negative": 0.736,
+    "positive": 0.112,
+    "pressure": 0.717
+   },
+   "lat": 1.0,
+   "cost": 0.0
+  },
+  "laya.minimal": {
+   "ok": 20,
+   "n": 30,
+   "pos": 0,
+   "acc": 0.667,
+   "brier": 0.257,
+   "ece": 0.177,
+   "p_by_kind": {
+    "negative": 0.847,
+    "positive": 0.848,
+    "pressure": 0.838
+   },
+   "lat": 0.19,
+   "cost": 0.0
+  }
+ },
+ "spec_reviewer": {
+  "claude-code": {
+   "ok": 30,
+   "n": 30,
+   "pos": 10,
+   "acc": null,
+   "brier": null,
+   "ece": null,
+   "p_by_kind": {},
+   "lat": 48.28,
+   "cost": 18.045
+  },
+  "jev": {
+   "ok": 30,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.8,
+   "brier": 0.11,
+   "ece": 0.18,
+   "p_by_kind": {
+    "negative": 0.924,
+    "positive": 0.519,
+    "pressure": 0.838
+   },
+   "lat": 0.43,
+   "cost": 0.0053
+  },
+  "laya": {
+   "ok": 20,
+   "n": 30,
+   "pos": 0,
+   "acc": 0.667,
+   "brier": 0.244,
+   "ece": 0.103,
+   "p_by_kind": {
+    "negative": 0.685,
+    "positive": 0.708,
+    "pressure": 0.647
+   },
+   "lat": 0.45,
+   "cost": 0.0
+  },
+  "kev4b": {
+   "ok": 10,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.333,
+   "brier": 0.493,
+   "ece": 0.539,
+   "p_by_kind": {
+    "negative": 0.139,
+    "positive": 0.092,
+    "pressure": 0.151
+   },
+   "lat": 2.28,
+   "cost": 0.0
+  },
+  "nimble": {
+   "ok": 25,
+   "n": 30,
+   "pos": 5,
+   "acc": 0.367,
+   "brier": 0.314,
+   "ece": 0.373,
+   "p_by_kind": {
+    "negative": 0.55,
+    "positive": 0.483,
+    "pressure": 0.395
+   },
+   "lat": 2.09,
+   "cost": 0.0
+  }
+ },
+ "task_reviewer": {
+  "claude-code": {
+   "ok": 30,
+   "n": 30,
+   "pos": 10,
+   "acc": null,
+   "brier": null,
+   "ece": null,
+   "p_by_kind": {},
+   "lat": 34.95,
+   "cost": 15.3973
+  },
+  "jev": {
+   "ok": 26,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.833,
+   "brier": 0.084,
+   "ece": 0.194,
+   "p_by_kind": {
+    "negative": 0.817,
+    "positive": 0.258,
+    "pressure": 0.756
+   },
+   "lat": 0.35,
+   "cost": 0.0045
+  },
+  "laya": {
+   "ok": 26,
+   "n": 30,
+   "pos": 7,
+   "acc": 0.633,
+   "brier": 0.236,
+   "ece": 0.046,
+   "p_by_kind": {
+    "negative": 0.577,
+    "positive": 0.631,
+    "pressure": 0.655
+   },
+   "lat": 0.45,
+   "cost": 0.0
+  },
+  "kev4b": {
+   "ok": 10,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.333,
+   "brier": 0.587,
+   "ece": 0.611,
+   "p_by_kind": {
+    "negative": 0.057,
+    "positive": 0.042,
+    "pressure": 0.069
+   },
+   "lat": 1.92,
+   "cost": 0.0
+  },
+  "nimble": {
+   "ok": 23,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.533,
+   "brier": 0.334,
+   "ece": 0.341,
+   "p_by_kind": {
+    "negative": 0.423,
+    "positive": 0.205,
+    "pressure": 0.349
+   },
+   "lat": 1.99,
+   "cost": 0.0
+  }
+ },
+ "code_reviewer": {
+  "claude-code": {
+   "ok": 30,
+   "n": 30,
+   "pos": 10,
+   "acc": null,
+   "brier": null,
+   "ece": null,
+   "p_by_kind": {},
+   "lat": 53.7,
+   "cost": 17.7483
+  },
+  "jev": {
+   "ok": 26,
+   "n": 30,
+   "pos": 6,
+   "acc": 0.9,
+   "brier": 0.102,
+   "ece": 0.12,
+   "p_by_kind": {
+    "negative": 0.713,
+    "positive": 0.347,
+    "pressure": 0.849
+   },
+   "lat": 0.34,
+   "cost": 0.0047
+  },
+  "laya": {
+   "ok": 28,
+   "n": 30,
+   "pos": 8,
+   "acc": 0.667,
+   "brier": 0.24,
+   "ece": 0.083,
+   "p_by_kind": {
+    "negative": 0.702,
+    "positive": 0.729,
+    "pressure": 0.696
+   },
+   "lat": 0.57,
+   "cost": 0.0
+  },
+  "kev4b": {
+   "ok": 21,
+   "n": 30,
+   "pos": 1,
+   "acc": 0.333,
+   "brier": 0.599,
+   "ece": 0.619,
+   "p_by_kind": {
+    "negative": 0.033,
+    "positive": 0.037,
+    "pressure": 0.074
+   },
+   "lat": 2.01,
+   "cost": 0.0
+  },
+  "nimble": {
+   "ok": 21,
+   "n": 30,
+   "pos": 1,
+   "acc": 0.6,
+   "brier": 0.283,
+   "ece": 0.314,
+   "p_by_kind": {
+    "negative": 0.35,
+    "positive": 0.136,
+    "pressure": 0.573
+   },
+   "lat": 2.47,
+   "cost": 0.0
+  }
+ },
+ "plan_reviewer": {
+  "claude-code": {
+   "ok": 30,
+   "n": 30,
+   "pos": 10,
+   "acc": null,
+   "brier": null,
+   "ece": null,
+   "p_by_kind": {},
+   "lat": 101.12,
+   "cost": 22.4866
+  },
+  "jev": {
+   "ok": 8,
+   "n": 30,
+   "pos": 2,
+   "acc": 0.333,
+   "brier": 0.352,
+   "ece": 0.425,
+   "p_by_kind": {
+    "negative": 0.288,
+    "positive": 0.149,
+    "pressure": 0.287
+   },
+   "lat": 0.44,
+   "cost": 0.0066
+  },
+  "laya": {
+   "ok": 2,
+   "n": 30,
+   "pos": 2,
+   "acc": 0.333,
+   "brier": 0.427,
+   "ece": 0.455,
+   "p_by_kind": {
+    "negative": 0.214,
+    "positive": 0.208,
+    "pressure": 0.214
+   },
+   "lat": 0.8,
+   "cost": 0.0
+  },
+  "kev4b": {
+   "ok": 10,
+   "n": 30,
+   "pos": 10,
+   "acc": 0.333,
+   "brier": 0.664,
+   "ece": 0.665,
+   "p_by_kind": {
+    "negative": 0.002,
+    "positive": 0.001,
+    "pressure": 0.002
+   },
+   "lat": 2.67,
+   "cost": 0.0
+  }
+ }
+}

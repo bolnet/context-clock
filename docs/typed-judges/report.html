@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Typed Judges Benchmark</title>
+<meta name="description" content="Jev and every open-source Jev-class alternative as code-review judges on a 150-case known-verdict corpus: how the questions were chosen, how the state was built, how answers were graded, and what each system actually reads.">
+<style>
+:root{--ground:#f5f5f7;--surface:#fff;--ink:#1d1d1f;--ink-2:#6e6e73;--ink-3:#86868b;--hair:rgba(0,0,0,.07);--accent:#0071e3;--heat:#ff6b00;
+--r-s:10px;--r-m:14px;--r-l:20px;--sh-1:0 1px 2px rgba(0,0,0,.04),0 6px 20px rgba(0,0,0,.05);--sh-2:0 2px 6px rgba(0,0,0,.06),0 16px 40px rgba(0,0,0,.08);
+--font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue",Helvetica,Arial,sans-serif;--mono:"SF Mono",ui-monospace,Menlo,monospace;color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ground:#000;--surface:#1c1c1e;--ink:#f5f5f7;--ink-2:#a1a1a6;--ink-3:#86868b;--hair:rgba(255,255,255,.1);--accent:#2997ff;--sh-1:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);--sh-2:0 2px 6px rgba(0,0,0,.5),0 16px 40px rgba(0,0,0,.5);color-scheme:dark}}
+:root[data-theme="dark"]{--ground:#000;--surface:#1c1c1e;--ink:#f5f5f7;--ink-2:#a1a1a6;--ink-3:#86868b;--hair:rgba(255,255,255,.1);--accent:#2997ff;--sh-1:0 1px 2px rgba(0,0,0,.4),0 6px 20px rgba(0,0,0,.35);--sh-2:0 2px 6px rgba(0,0,0,.5),0 16px 40px rgba(0,0,0,.5);color-scheme:dark}
+*{box-sizing:border-box}html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font-family:var(--font);font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.nav{position:sticky;top:0;z-index:5;backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);background:rgba(255,255,255,.72);border-bottom:1px solid var(--hair)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .nav{background:rgba(28,28,30,.72)}}:root[data-theme="dark"] .nav{background:rgba(28,28,30,.72)}
+.nav .in{max-width:1080px;margin:0 auto;padding:0 22px;height:48px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.nav b{font-size:15px;font-weight:600;letter-spacing:-.01em}.nav ul{list-style:none;margin:0;padding:0;display:flex;gap:22px;font-size:13px}
+.nav a{color:var(--ink-2);text-decoration:none}.nav a:hover{color:var(--ink)}@media (max-width:700px){.nav ul{display:none}}
+.wrap{max-width:1080px;margin:0 auto;padding:clamp(34px,6vw,56px) 22px 80px}
+.read{max-width:720px;margin:0 auto}
+h1{font-size:clamp(40px,6vw,64px);line-height:1.05;letter-spacing:-.03em;font-weight:700;margin:0 0 14px}
+.sub{font-size:clamp(19px,2.4vw,24px);line-height:1.4;color:var(--ink-2);letter-spacing:-.01em;margin:0 0 10px;font-weight:400}
+.meta{font-size:13px;color:var(--ink-3);margin:0 0 clamp(34px,6vw,56px)}
+h2{font-size:clamp(28px,3.4vw,40px);letter-spacing:-.025em;line-height:1.1;font-weight:700;margin:clamp(40px,7vw,72px) 0 18px}
+h3{font-size:19px;letter-spacing:-.015em;font-weight:600;margin:32px 0 10px}
+p{margin:0 0 16px;max-width:66ch;line-height:1.85}.lead{font-size:19px}
+.panel{background:var(--surface);border-radius:var(--r-l);box-shadow:var(--sh-1);overflow:hidden;margin:22px 0}
+.row{display:grid;grid-template-columns:1fr auto;gap:18px;align-items:baseline;padding:18px 22px;border-bottom:1px solid var(--hair)}.row:last-child{border-bottom:0}
+.row .k{font-weight:600;letter-spacing:-.01em}.row .d{color:var(--ink-2);font-size:15px;line-height:1.6;display:block;font-weight:400;margin-top:2px}
+.row .v{font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;letter-spacing:-.02em;white-space:nowrap}
+.row .v small{display:block;font-size:12px;color:var(--ink-3);font-weight:400;text-align:right}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);margin:22px 0}.stats>div{padding:24px 22px;border-right:1px solid var(--hair)}.stats>div:last-child{border-right:0}
+.stats .n{font-size:clamp(32px,4vw,44px);font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums;line-height:1}.stats .l{color:var(--ink-2);font-size:14px;margin-top:8px}
+@media (max-width:700px){.stats{grid-template-columns:1fr}.stats>div{border-right:0;border-bottom:1px solid var(--hair)}.stats>div:last-child{border-bottom:0}}
+.scroll{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--hair);vertical-align:top}tr:last-child td{border-bottom:0}
+thead th{font-size:12px;color:var(--ink-3);font-weight:500;letter-spacing:.02em;text-transform:uppercase}
+td:nth-child(n+2),thead th:nth-child(n+2){text-align:right;white-space:nowrap}table.left td,table.left th{text-align:left;white-space:normal}
+tbody th{font-weight:600;letter-spacing:-.01em}.hi{color:var(--accent);font-weight:600}.heat{color:var(--heat);font-weight:600}
+.callout{background:var(--surface);border-radius:var(--r-l);box-shadow:var(--sh-1);padding:26px 28px;margin:26px 0}.callout .t{font-size:12px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px}
+.callout p:last-child{margin:0}.cta{background:var(--ink);color:#fff;border-radius:var(--r-l);padding:34px 32px;margin:40px 0}
+.cta p{color:rgba(255,255,255,.8);max-width:60ch}.cta h2{margin:0 0 10px;color:#fff;font-size:28px}
+ol{padding-left:20px;max-width:66ch}li{margin:10px 0;line-height:1.7}code{font-family:var(--mono);font-size:.88em}
+a{color:var(--accent);text-decoration:none}a:hover{text-decoration:underline}a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.hair{height:1px;background:var(--hair);margin:clamp(34px,6vw,56px) 0}
+@media (prefers-reduced-motion:no-preference){.panel{transition:box-shadow .25s ease,transform .25s ease}.panel:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}}
+
+/* motion */
+.hero{background:var(--surface);border-radius:var(--r-l);box-shadow:var(--sh-1);padding:26px 28px;margin:0 0 26px;overflow:hidden}
+.hero svg{width:100%;height:auto;display:block}
+.hero .lbl{font:500 12px var(--mono);fill:var(--ink-3)}.hero .txt{font:600 13px var(--font);fill:var(--ink)}.hero .sm{font:400 11px var(--font);fill:var(--ink-2)}
+.hero .state{fill:var(--ground);stroke:var(--hair)}.hero .q{fill:var(--surface);stroke:var(--hair)}.hero .bar-bg{fill:var(--hair)}.hero .bar{fill:var(--accent);transform-origin:left;transform:scaleX(0);animation:grow 1.1s cubic-bezier(.2,.8,.2,1) forwards}
+.hero .flow{stroke:var(--ink-3);stroke-width:1.5;fill:none;stroke-dasharray:6 6;animation:dash 1.6s linear infinite}
+.hero .pulse{fill:var(--accent);animation:pulse 2.4s ease-in-out infinite}
+@keyframes grow{to{transform:scaleX(1)}}@keyframes dash{to{stroke-dashoffset:-24}}@keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+.bars{display:inline-flex;gap:4px;align-items:flex-end;height:18px;vertical-align:middle;margin-right:8px}
+.bars i{display:block;width:9px;height:100%;background:var(--hair);border-radius:2px;position:relative;overflow:hidden}
+.bars i::after{content:"";position:absolute;left:0;right:0;bottom:0;height:calc(var(--v) * 100%);background:var(--ink-3);transform:scaleY(0);transform-origin:bottom;transition:transform .9s cubic-bezier(.2,.8,.2,1)}
+.bars i.d::after{background:var(--accent)}.inview .bars i::after{transform:scaleY(1)}
+.leak{background:var(--surface);border-radius:var(--r-l);box-shadow:var(--sh-1);padding:22px 24px;margin:22px 0}
+.leak svg{width:100%;height:auto;display:block}.leak .cap{font:400 14px var(--font);fill:var(--ink-2)}.leak .code{font:500 12px var(--mono);fill:var(--ink)}
+.leak .red{fill:var(--heat)}.leak .box{fill:var(--ground);stroke:var(--hair)}
+.leak .s1,.leak .s2,.leak .s3{opacity:0;animation:leak 9s ease-in-out infinite}.leak .s2{animation-delay:3s}.leak .s3{animation-delay:6s}
+@keyframes leak{0%{opacity:0}5%,30%{opacity:1}36%,100%{opacity:0}}
+.leak .dot{fill:var(--hair)}.leak .dot.on{animation:dotcycle 9s ease-in-out infinite}.leak .dot.d2{animation-delay:3s}.leak .dot.d3{animation-delay:6s}
+@keyframes dotcycle{0%{fill:var(--hair)}5%,30%{fill:var(--accent)}36%,100%{fill:var(--hair)}}
+@media (prefers-reduced-motion:reduce){.hero .bar{animation:none;transform:none}.hero .flow,.hero .pulse{animation:none}.bars i::after{transition:none;transform:scaleY(1)}
+ .leak .s1,.leak .s2,.leak .s3{animation:none}.leak .s3{opacity:1}.leak .dot.on{animation:none}.leak .dot.d3{fill:var(--accent)}}
+</style>
+</head>
+<body>
+<nav class="nav"><div class="in"><b>Typed Judges Benchmark</b><ul><li><a href="#measured">Measured</a></li><li><a href="#questions">Questions</a></li><li><a href="#state">State</a></li><li><a href="#grading">Grading</a></li><li><a href="#results">Results</a></li><li><a href="#replay">Replay</a></li><li><a href="#claude">Claude</a></li><li><a href="#findings">Findings</a></li></ul></div></nav>
+<main class="wrap">
+<div class="read">
+<h1>Typed decision models as code-review judges</h1>
+<p class="sub">Jev and every open-source Jev-class alternative, asked the same typed questions about the same 150 review cases, scored against verdicts fixed before any of them ran.</p>
+<p class="meta">Nine systems · five reviewer roles · 1,834 questions · Claude as the reference · 2026-09-25</p>
+<div class="hero" aria-label="A state and typed questions go in; calibrated probabilities come out">
+<svg viewBox="0 0 900 250" role="img">
+  <rect class="state" x="10" y="30" width="250" height="190" rx="14"/>
+  <text class="lbl" x="26" y="56">STATE · inputs inlined by name</text>
+  <text class="sm" x="26" y="84">### inputs/review_package.diff</text>
+  <text class="sm" x="26" y="104">+ def refund(self, cid, amount):</text>
+  <text class="sm" x="26" y="124">+     if amount &lt;= 0: return 25</text>
+  <text class="sm" x="26" y="152">### inputs/task_brief.md</text>
+  <text class="sm" x="26" y="172">non-positive amount raises ValueError</text>
+  <path class="flow" d="M262 125 C 300 125, 300 60, 340 60"/><path class="flow" d="M262 125 L 340 125"/><path class="flow" d="M262 125 C 300 125, 300 190, 340 190"/>
+  <rect class="q" x="342" y="36" width="250" height="48" rx="12"/><text class="txt" x="358" y="56">noul · a defect a reviewer must block?</text><text class="sm" x="358" y="74">probability of yes</text>
+  <rect class="q" x="342" y="101" width="250" height="48" rx="12"/><text class="txt" x="358" y="121">choice · what does the test assert?</text><text class="sm" x="358" y="139">requirement · nothing · detail · wrong</text>
+  <rect class="q" x="342" y="166" width="250" height="48" rx="12"/><text class="txt" x="358" y="186">noul · public-interface contract kept?</text><text class="sm" x="358" y="204">probability of yes</text>
+  <path class="flow" d="M594 60 L 640 60"/><path class="flow" d="M594 125 L 640 125"/><path class="flow" d="M594 190 L 640 190"/>
+  <text class="lbl" x="646" y="44">ANSWERS · probabilities, no text</text>
+  <rect class="bar-bg" x="646" y="52" width="230" height="10" rx="5"/><rect class="bar" x="646" y="52" width="205" height="10" rx="5" style="animation-delay:.2s"/><text class="sm" x="646" y="80">defect · 0.89</text>
+  <rect class="bar-bg" x="646" y="117" width="230" height="10" rx="5"/><rect class="bar" x="646" y="117" width="221" height="10" rx="5" style="animation-delay:.5s"/><text class="sm" x="646" y="145">nothing · 0.96</text>
+  <rect class="bar-bg" x="646" y="182" width="230" height="10" rx="5"/><rect class="bar" x="646" y="182" width="32" height="10" rx="5" style="animation-delay:.8s"/><text class="sm" x="646" y="210">contract kept · 0.14</text>
+  <circle class="pulse" cx="884" cy="57" r="4"/>
+</svg></div>
+
+<div class="panel stats"><div><div class="n">150</div><div class="l">known-verdict cases, ten clean, ten planted, ten argued, per role</div></div><div><div class="n">1,834</div><div class="l">typed questions, every raw answer recorded by state hash</div></div><div><div class="n">1</div><div class="l">system that reads the case on four of five roles</div></div></div>
+
+<p class="lead">Two things came out of it that matter more than the leaderboard.</p>
+<div class="panel">
+  <div class="row"><div><span class="k">The first number was wrong, instructively.</span><span class="d">A typed judge that never saw the diff scored 30 of 30 because the file paths it was handed carried the corpus label. Inlining the files and dropping the directory turned that into 25 of 30.</span></div><div class="v"><span class="heat">30 → 25</span><small>after the leak fix</small></div></div>
+  <div class="row"><div><span class="k">Scores can be earned without reading.</span><span class="d">The grader accepted a defect as caught when any lens question answered 0.5 or above, path or no path. A constant answer scores 20 of 30 that way. Only the clean cases and the per-question probabilities separate reading from guessing.</span></div><div class="v">20/30<small>for a constant answer</small></div></div>
+</div>
+
+<h2 id="measured">What was measured</h2>
+<p>A code-review pipeline has five reviewer roles, each answering a bounded question about a piece of state. For each role there is a corpus of thirty cases whose verdict was fixed before any system ran. Cases were authored by hand; none is public, so no system could have trained on them.</p>
+<div class="panel"><div class="scroll"><table class="left"><thead><tr><th>role</th><th>state the judge sees</th><th>the question</th></tr></thead><tbody>
+<tr><th>test reviewer</th><td>the tests a writer produced, the task brief, the acceptance criteria</td><td>does each test prove a requirement, or merely run?</td></tr>
+<tr><th>spec alignment</th><td>a diff, the spec, the accumulated change</td><td>does the change drift from or contradict the spec?</td></tr>
+<tr><th>task alignment</th><td>a diff, the task brief, the builder's report</td><td>does the change do what the task said, and only that?</td></tr>
+<tr><th>code review</th><td>a diff with context, the brief, the report</td><td>what defects does the diff contain?</td></tr>
+<tr><th>plan review</th><td>a plan of tasks, the spec</td><td>per lens: sign off, defer, ask, or block?</td></tr>
+</tbody></table></div></div>
+<p>Each corpus has three kinds of case, ten of each. A <b>positive</b> is clean; any blocking or major finding is a false fail. A <b>negative</b> plants a defect at a named path. A <b>pressure</b> case plants one and argues for it in the brief or a comment; the judge must flag it anyway.</p>
+
+<h2 id="questions">How the questions were chosen</h2>
+<p>Jev-class systems take a state and typed questions, a yes/no with a probability, a choice over named options with a distribution, an ordered score, and return no text. The rule used to turn each reviewer prompt into questions: the judgement the schema asks for becomes the question; lenses become secondary questions.</p>
+<div class="panel">
+  <div class="row"><div><span class="k">Test reviewer</span><span class="d">One choice per test id over the four labels the schema already used, requirement, nothing, implementation detail, wrong requirement, with the schema's own definition of each as the option description. One yes/no per lens.</span></div></div>
+  <div class="row"><div><span class="k">Spec and task alignment</span><span class="d">One yes/no, "the change contains a defect a reviewer must block". One yes/no per lens. A choice for the verdict and a choice for the kind of misalignment.</span></div></div>
+  <div class="row"><div><span class="k">Code review</span><span class="d">The defect yes/no, one yes/no per lens (public-interface contract, modular decomposition, test-tier isolation), the verdict choice.</span></div></div>
+  <div class="row"><div><span class="k">Plan review</span><span class="d">One choice per lens over the four plan verdicts.</span></div></div>
+</div>
+<p>An earlier attempt that asked only the lens questions produced honest 0.5s and never asked for the judgement. For the test reviewer the per-test choice is the judgement; the lens is context.</p>
+
+<h2 id="state">How the state was built</h2>
+<div class="leak" aria-label="How the label leaked, and the fix">
+<svg viewBox="0 0 900 210" role="img">
+  <g class="s1"><rect class="box" x="10" y="20" width="880" height="140" rx="14"/>
+    <text class="lbl" x="28" y="48">1 · WHAT THE FIRST RUN SENT</text>
+    <text class="code" x="28" y="82">Read first: `/evals/code_reviewer/<tspan class="red">negative</tspan>-file-handle-leak/inputs/review_package.diff`</text>
+    <text class="cap" x="28" y="112">The prompt with paths in it. No file contents: the model has no tools to open them.</text>
+    <text class="cap" x="28" y="138">The directory name carries the corpus label. A model that never saw a diff can read "negative".</text></g>
+  <g class="s2"><rect class="box" x="10" y="20" width="880" height="140" rx="14"/>
+    <text class="lbl" x="28" y="48">2 · WHAT IT SCORED</text>
+    <text class="code" x="28" y="82">code reviewer corpus: <tspan class="red">30 / 30</tspan>  ·  every planted defect "caught", every clean case "passed"</text>
+    <text class="cap" x="28" y="112">Published as a result. It measured the label, not the model.</text>
+    <text class="cap" x="28" y="138">Found by asking what the state actually contained, not by reading the score.</text></g>
+  <g class="s3"><rect class="box" x="10" y="20" width="880" height="140" rx="14"/>
+    <text class="lbl" x="28" y="48">3 · THE FIX, AND THE HONEST NUMBER</text>
+    <text class="code" x="28" y="82">### inputs/review_package.diff  +  file contents inlined  ·  directory dropped from the text</text>
+    <text class="cap" x="28" y="112">Pinned by a test: the state carries the contents and never the case name.</text>
+    <text class="cap" x="28" y="138">Same corpus, same model: 25 / 30. Five clean diffs over-flagged, no planted defect missed.</text></g>
+  <circle class="dot on" cx="430" cy="190" r="5"/><circle class="dot on d2" cx="450" cy="190" r="5"/><circle class="dot on d3" cx="470" cy="190" r="5"/>
+</svg></div>
+<p>Text-generating judges get their inputs by reference, file paths and tools to open them. A typed model has no tools, so the state must carry the content. Every referenced file is inlined under a neutral name and the directory is removed from the text; that is the leak fix. The file a test id names is inlined too. For small budgets the inputs go before the prompt text, so what a 512-token window drops is boilerplate, not evidence. Systems with a hard limit get a character cap after that ordering; code tokenizes at about 2.3 characters per token.</p>
+<p>Every exchange is recorded with the questions, the raw per-option probabilities, the model, the endpoint and the SHA-256 of the state; the state text is stored once by hash. That is what allowed the replay below: identical bytes to every system.</p>
+
+<h2 id="grading">How answers were graded</h2>
+<p>A positive passes with no finding at or above major. A negative or pressure case passes with a finding on the planted path at or above the floor, or, for a judge that cannot name a path, a verdict of fail.</p>
+<div class="callout"><div class="t">The fix</div><p>For the test-review role the grader originally accepted any major finding as a catch, including a pathless lens answer at 0.5, and counted the same against clean cases. It now reads the per-test labels and findings that name a path; a pathless lens answer counts neither way. The change moved Jev 30 to 29, Nimble 20 to 24, Kev 4B 26 to 17, Laya 24 to 20. The diff-based roles keep the original rule, which still admits the flag-everything route; read their clean-case column, not the score.</p></div>
+
+<h2>The systems</h2>
+<div class="panel"><div class="scroll"><table class="left"><thead><tr><th>system</th><th>what it is</th><th>how it ran</th></tr></thead><tbody>
+<tr><th>Claude judge</th><td>the pipeline's text-generating reviewer, with tools</td><td>inputs by reference, as in production</td></tr>
+<tr><th>Jev (TypeSafe)</th><td>hosted decision model</td><td>API, full inlined state</td></tr>
+<tr><th>Laya</th><td>ModernBERT-large, 421M</td><td>in-process; 512-token budget, evidence first</td></tr>
+<tr><th>Von</th><td>ModernBERT-large, 395M</td><td>in-process</td></tr>
+<tr><th>Kev 0.8B</th><td>Qwen3.5-0.8B with a pointer head</td><td>local server on MLX</td></tr>
+<tr><th>Kev 4B</th><td>Qwen3.5-4B with a pointer head</td><td>the author's Hugging Face Space</td></tr>
+<tr><th>Rizzo Flow 1.7B</th><td>Spark-X2.5 over llama.cpp</td><td>local server on MLX; the 4B took 120 s a question</td></tr>
+<tr><th>SemIf</th><td>option logits of a frozen base LLM, no decision model</td><td>batch scorer over Qwen3.5-0.8B on MLX</td></tr>
+<tr><th>Bespoke Nimble 9B</th><td>candidate-logit scoring, 9B</td><td>Hugging Face Space; 2,048-token limit, state capped at 3,400 characters</td></tr>
+<tr><th>NanoJev</th><td>Qwen3-0.6B with decision heads</td><td>not run: requires a CUDA device; no Space, no endpoint</td></tr>
+</tbody></table></div></div>
+</div>
+
+<h2 id="results" class="read" style="margin-left:auto;margin-right:auto">Results</h2>
+<div class="read"><h3>Test reviewer, the role every system ran</h3><p>Accuracy is of the per-test probability against the known kind; 0.67 is what a constant "defect" answer earns on a 20 to 10 split. Read the last column: a judge that reads the case has a low first number and high second and third.</p></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>system</th><th>graded</th><th>clean passed</th><th>accuracy</th><th>Brier</th><th>P(defect) clean → planted → argued</th></tr></thead><tbody>
+<tr><th>Claude judge</th><td>30/30</td><td>10/10</td><td>—</td><td>—</td><td>—</td></tr>
+<tr><th>Jev</th><td class="hi">29/30</td><td>10/10</td><td class="hi">0.97</td><td class="hi">0.05</td><td><span class="bars"><i style="--v:0.15"></i><i class="d" style="--v:0.88"></i><i class="d" style="--v:0.93"></i></span>0.15 → 0.88 → 0.93</td></tr>
+<tr><th>Nimble 9B, 3,400 chars</th><td>24/30</td><td>9/10</td><td>0.83</td><td>0.15</td><td><span class="bars"><i style="--v:0.14"></i><i class="d" style="--v:0.75"></i><i class="d" style="--v:0.81"></i></span>0.14 → 0.75 → 0.81</td></tr>
+<tr><th>Nimble 9B, test + brief only</th><td>25/30</td><td>9/10</td><td>0.83</td><td>0.16</td><td><span class="bars"><i style="--v:0.11"></i><i class="d" style="--v:0.74"></i><i class="d" style="--v:0.72"></i></span>0.11 → 0.74 → 0.72</td></tr>
+<tr><th>Laya</th><td>20/30</td><td>6/10</td><td>0.67</td><td>0.21</td><td><span class="bars"><i style="--v:0.68"></i><i class="d" style="--v:0.69"></i><i class="d" style="--v:0.72"></i></span>0.68 → 0.69 → 0.72</td></tr>
+<tr><th>Kev 0.8B</th><td>20/30</td><td>0/10</td><td>0.67</td><td>0.25</td><td><span class="bars"><i style="--v:0.84"></i><i class="d" style="--v:0.86"></i><i class="d" style="--v:0.88"></i></span>0.84 → 0.86 → 0.88</td></tr>
+<tr><th>SemIf</th><td>20/30</td><td>0/10</td><td>0.67</td><td>0.23</td><td><span class="bars"><i style="--v:0.78"></i><i class="d" style="--v:0.78"></i><i class="d" style="--v:0.79"></i></span>0.78 → 0.78 → 0.79</td></tr>
+<tr><th>Kev 4B, test + brief only</th><td>18/30</td><td>9/10</td><td>0.63</td><td>0.34</td><td><span class="bars"><i style="--v:0.15"></i><i class="d" style="--v:0.35"></i><i class="d" style="--v:0.51"></i></span>0.15 → 0.35 → 0.51</td></tr>
+<tr><th>Kev 4B</th><td>17/30</td><td>8/10</td><td>0.57</td><td>0.34</td><td><span class="bars"><i style="--v:0.21"></i><i class="d" style="--v:0.44"></i><i class="d" style="--v:0.56"></i></span>0.21 → 0.44 → 0.56</td></tr>
+<tr><th>Von</th><td>10/30</td><td>10/10</td><td>0.67</td><td>0.23</td><td><span class="bars"><i style="--v:0.59"></i><i class="d" style="--v:0.58"></i><i class="d" style="--v:0.58"></i></span>0.59 → 0.58 → 0.58</td></tr>
+<tr><th>Rizzo Flow 1.7B</th><td>10/30</td><td>10/10</td><td>0.33</td><td>0.45</td><td><span class="bars"><i style="--v:0.19"></i><i class="d" style="--v:0.19"></i><i class="d" style="--v:0.19"></i></span>0.19 → 0.19 → 0.19</td></tr>
+</tbody></table></div></div>
+
+<div class="read"><h3>The other four roles</h3></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role</th><th>Jev</th><th>Laya</th><th>Kev 4B</th><th>Nimble 9B</th></tr></thead><tbody>
+<tr><th>spec alignment</th><td class="hi">30/30 · clean 10 · acc 0.80</td><td>20/30 · clean 0 · acc 0.67</td><td>10/30 · clean 10 · acc 0.33</td><td>25/30 · clean 5 · acc 0.37</td></tr>
+<tr><th>task alignment</th><td class="hi">26/30 · clean 10 · acc 0.83</td><td>26/30 · clean 7 · acc 0.63</td><td>10/30 · clean 10 · acc 0.33</td><td>23/30 · clean 10 · acc 0.53</td></tr>
+<tr><th>code review</th><td class="hi">26/30 · clean 6 · acc 0.90</td><td>28/30 · clean 8 · acc 0.67</td><td>21/30 · clean 1 · acc 0.33</td><td>21/30 · clean 1 · acc 0.60</td></tr>
+<tr><th>plan review</th><td>8/30 · clean 2 · acc 0.33</td><td>2/30 · clean 2 · acc 0.33</td><td>10/30 · clean 10 · acc 0.33</td><td>refused: over 2,048 tokens</td></tr>
+</tbody></table></div></div>
+<div class="read"><p>Laya's 28 of 30 on code review against Jev's 26 is the flag-everything route the diff-role grader still allows: its probability of a defect is 0.73 on clean diffs and 0.70 on defective ones. Kev 4B on the diff roles puts 0.03 to 0.15 on everything, clean or not. Plan review is the role neither reads, and its grader wants a block on a named task id, which a per-lens judge cannot give.</p>
+
+<h3>Head to head on identical questions: Jev and Laya</h3><p>All 449 recorded exchanges were replayed through both in one sitting, 1,834 questions each, byte-identical state and questions.</p></div>
+<div class="panel stats"><div><div class="n">32%</div><div class="l">agreement on choice labels</div></div><div><div class="n">70%</div><div class="l">agreement on yes/no side, mean probability gap 0.19</div></div><div><div class="n">$0.07</div><div class="l">Jev's cost for all 1,834 questions; Laya ran locally for nothing</div></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role, state</th><th>Jev accuracy</th><th>Jev Brier</th><th>Jev P(defect) clean → defective</th><th>Laya accuracy</th><th>Laya Brier</th><th>Laya P(defect) clean → defective</th></tr></thead><tbody>
+<tr><th>test reviewer, full</th><td class="hi">0.93</td><td>0.07</td><td><span class="bars"><i style="--v:0.18"></i><i class="d" style="--v:0.88"></i></span>0.18 → 0.88</td><td>0.67</td><td>0.22</td><td><span class="bars"><i style="--v:0.71"></i><i class="d" style="--v:0.73"></i></span>0.71 → 0.73</td></tr>
+<tr><th>test reviewer, minimal</th><td>0.77</td><td>0.12</td><td><span class="bars"><i style="--v:0.16"></i><i class="d" style="--v:0.79"></i></span>0.16 → 0.79</td><td>0.67</td><td>0.26</td><td><span class="bars"><i style="--v:0.85"></i><i class="d" style="--v:0.84"></i></span>0.85 → 0.84</td></tr>
+<tr><th>task alignment</th><td class="hi">0.89</td><td>0.09</td><td><span class="bars"><i style="--v:0.23"></i><i class="d" style="--v:0.76"></i></span>0.23 → 0.76</td><td>0.64</td><td>0.23</td><td><span class="bars"><i style="--v:0.62"></i><i class="d" style="--v:0.61"></i></span>0.62 → 0.61</td></tr>
+<tr><th>code review</th><td class="hi">0.89</td><td>0.11</td><td><span class="bars"><i style="--v:0.37"></i><i class="d" style="--v:0.75"></i></span>0.37 → 0.75</td><td>0.67</td><td>0.24</td><td><span class="bars"><i style="--v:0.77"></i><i class="d" style="--v:0.75"></i></span>0.77 → 0.75</td></tr>
+<tr><th>spec alignment</th><td>0.72</td><td>0.18</td><td><span class="bars"><i style="--v:0.70"></i><i class="d" style="--v:0.91"></i></span>0.70 → 0.91</td><td>0.67</td><td>0.23</td><td><span class="bars"><i style="--v:0.70"></i><i class="d" style="--v:0.68"></i></span>0.70 → 0.68</td></tr>
+<tr><th>plan review</th><td>0.33</td><td>0.36</td><td><span class="bars"><i style="--v:0.14"></i><i class="d" style="--v:0.28"></i></span>0.14 → 0.28</td><td>0.33</td><td>0.42</td><td><span class="bars"><i style="--v:0.22"></i><i class="d" style="--v:0.23"></i></span>0.22 → 0.23</td></tr>
+</tbody></table></div></div>
+
+
+<div class="read">
+<h2 id="replay">The 3,306 recorded questions, replayed through the two kept models</h2>
+<p>Nine systems answered 3,306 questions in total, most of them the same question about the same case asked of different systems. Deduplicated by state hash and question set, that is 449 unique exchanges and 1,834 unique questions, each case in up to three recorded state variants. Both kept models, Jev and Laya, answered every one in one sitting on byte-identical input.</p>
+</div>
+<div class="panel stats"><div><div class="n">3,306</div><div class="l">questions answered across nine systems</div></div><div><div class="n">1,834</div><div class="l">unique questions after deduplication by state hash</div></div><div><div class="n">2</div><div class="l">models asked all of them: Jev and Laya</div></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role</th><th>choice: same label</th><th>yes/no: same side</th><th>mean yes/no gap</th></tr></thead><tbody>
+<tr><th>test reviewer</th><td>36 / 128 · 28%</td><td>79 / 120 · 66%</td><td>0.20</td></tr>
+<tr><th>task alignment</th><td>96 / 180 · 53%</td><td>115 / 180 · 64%</td><td>0.20</td></tr>
+<tr><th>code review</th><td>44 / 90 · 49%</td><td>225 / 360 · 63%</td><td>0.20</td></tr>
+<tr><th>spec alignment</th><td>51 / 178 · 29%</td><td>170 / 178 · 96%</td><td>0.15</td></tr>
+<tr><th>plan review</th><td>95 / 420 · 23%</td><td>—</td><td>—</td></tr>
+<tr><th>all</th><td class="hi">32%</td><td class="hi">70%</td><td>0.19</td></tr>
+</tbody></table></div></div>
+<div class="read">
+<div class="panel">
+  <div class="row"><div><span class="k">Agreement is mostly on the easy side.</span><span class="d">The 96% on spec alignment is both models putting a high probability of a defect on nearly every spec case, clean ones included, 0.70 each. Agreement where both say yes to everything carries no information.</span></div><div class="v">96%<small>spec, same side</small></div></div>
+  <div class="row"><div><span class="k">Laya's per-test labels are close to a fixed answer.</span><span class="d">Of 128 per-test choices, 78 are "implementation detail" and none is "nothing". Jev's labels spread 56 / 26 / 23 / 23 and track the cases. Laya's mean top-option probability is 0.39, barely above a uniform guess over four options; Jev's is 0.74.</span></div><div class="v">78 / 128<small>one label, Laya</small></div></div>
+  <div class="row"><div><span class="k">Laya's yes/no answers move less, and not with the case.</span><span class="d">Standard deviation 0.15 across 838 yes/no answers against Jev's 0.20; the movement it does have is uncorrelated with clean versus defective.</span></div><div class="v">0.15 vs 0.20<small>stdev of P(yes)</small></div></div>
+  <div class="row"><div><span class="k">Plan review is where both are lost.</span><span class="d">23% label agreement over 420 per-lens choices; neither reads the plan, and the grader wants a task id a per-lens judge cannot name.</span></div><div class="v">23%<small>plan, same label</small></div></div>
+  <div class="row"><div><span class="k">What the replay settles, and what it cannot.</span><span class="d">On identical input the two are not interchangeable: the disagreement is a reader against a near-constant answer, not noise between two readers. Whether Laya's errors are independent of a text-generating judge's on live work, the only reason to keep a cheap second vote, needs the live disagreement rate, not more corpus questions.</span></div><div class="v">$0.07<small>Jev, all 1,834</small></div></div>
+</div>
+</div>
+
+<div class="read">
+<h2 id="claude">All 1,834 questions again, with Claude as the reference</h2>
+<p>The replay above shows Jev and Laya disagree; it does not say who is right. So a third system answered the same 449 exchanges: Claude Opus 5, the model behind the text-generating judge, asked the identical typed questions about the identical state bytes, through the Claude Code CLI with a JSON schema enforcing the answer shape.</p>
+<p>Of the 1,834 questions, 726 have a known right answer, because the case kind fixes it: the 269 defect yes/no questions, the 269 verdicts, the 128 per-test labels, and for plan review whether any lens says block, 60 in all. Lens questions and misalignment kinds have no ground truth and are not scored. Accuracy is the probability against 0.5; Brier is the squared error of the probability, lower is better.</p>
+</div>
+<div class="panel stats"><div><div class="n">91.5%</div><div class="l">Claude Opus 5, right on the 726 gradable questions, Brier 0.066</div></div><div><div class="n">85.4%</div><div class="l">Jev, Brier 0.107, at about one three-thousandth of the price</div></div><div><div class="n">63.4%</div><div class="l">Laya, Brier 0.249, the same probability on clean and defective cases</div></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role</th><th>graded</th><th>Claude acc / Brier</th><th>Jev acc / Brier</th><th>Laya acc / Brier</th></tr></thead><tbody>
+<tr><th>test reviewer</th><td>128</td><td class="hi">0.95 / 0.04</td><td>0.90 / 0.08</td><td>0.63 / 0.26</td></tr><tr><th>task alignment</th><td>180</td><td class="hi">0.97 / 0.04</td><td>0.92 / 0.06</td><td>0.66 / 0.23</td></tr><tr><th>code review</th><td>180</td><td class="hi">0.92 / 0.07</td><td>0.88 / 0.10</td><td>0.68 / 0.23</td></tr><tr><th>spec alignment</th><td>178</td><td class="hi">0.88 / 0.08</td><td>0.76 / 0.16</td><td>0.67 / 0.24</td></tr><tr><th>plan review</th><td>60</td><td class="hi">0.75 / 0.18</td><td class="hi">0.75 / 0.18</td><td>0.33 / 0.36</td></tr><tr><th>all</th><td>726</td><td class="hi">0.915 / 0.066</td><td>0.854 / 0.107</td><td>0.634 / 0.249</td></tr>
+</tbody></table></div></div>
+<div class="read"><h3>Probability of a defect, clean → defective</h3><p>A system that reads the case has a low first number and a high second.</p></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>role</th><th>Claude</th><th>Jev</th><th>Laya</th></tr></thead><tbody>
+<tr><th>test reviewer</th><td><span class="bars"><i style="--v:0.22"></i><i class="d" style="--v:0.96"></i></span>0.22 → 0.96</td><td><span class="bars"><i style="--v:0.15"></i><i class="d" style="--v:0.86"></i></span>0.15 → 0.86</td><td><span class="bars"><i style="--v:0.75"></i><i class="d" style="--v:0.76"></i></span>0.75 → 0.76</td></tr><tr><th>task alignment</th><td><span class="bars"><i style="--v:0.21"></i><i class="d" style="--v:0.90"></i></span>0.21 → 0.90</td><td><span class="bars"><i style="--v:0.15"></i><i class="d" style="--v:0.83"></i></span>0.15 → 0.83</td><td><span class="bars"><i style="--v:0.60"></i><i class="d" style="--v:0.59"></i></span>0.60 → 0.59</td></tr><tr><th>code review</th><td><span class="bars"><i style="--v:0.38"></i><i class="d" style="--v:0.94"></i></span>0.38 → 0.94</td><td><span class="bars"><i style="--v:0.33"></i><i class="d" style="--v:0.78"></i></span>0.33 → 0.78</td><td><span class="bars"><i style="--v:0.69"></i><i class="d" style="--v:0.69"></i></span>0.69 → 0.69</td></tr><tr><th>spec alignment</th><td><span class="bars"><i style="--v:0.46"></i><i class="d" style="--v:0.96"></i></span>0.46 → 0.96</td><td><span class="bars"><i style="--v:0.61"></i><i class="d" style="--v:0.90"></i></span>0.61 → 0.90</td><td><span class="bars"><i style="--v:0.68"></i><i class="d" style="--v:0.66"></i></span>0.68 → 0.66</td></tr><tr><th>plan review</th><td><span class="bars"><i style="--v:0.65"></i><i class="d" style="--v:0.82"></i></span>0.65 → 0.82</td><td><span class="bars"><i style="--v:0.66"></i><i class="d" style="--v:0.81"></i></span>0.66 → 0.81</td><td><span class="bars"><i style="--v:0.29"></i><i class="d" style="--v:0.29"></i></span>0.29 → 0.29</td></tr>
+</tbody></table></div></div>
+<div class="read"><h3>Who got each question right</h3></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>correct</th><th>of 726</th></tr></thead><tbody><tr><th>all three</th><td>400</td></tr><tr><th>Claude and Jev</th><td>190</td></tr><tr><th>Claude and Laya</th><td>41</td></tr><tr><th>Claude only</th><td>33</td></tr><tr><th>Jev only</th><td>27</td></tr><tr><th>none</th><td>16</td></tr><tr><th>Laya only</th><td>16</td></tr><tr><th>Jev and Laya</th><td>3</td></tr></tbody></table></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th>pair</th><th>same side</th><th>both wrong</th></tr></thead><tbody><tr><th>Claude and Jev</th><td>622 / 726 · 86%</td><td>32</td></tr><tr><th>Claude and Laya</th><td>484 / 726 · 67%</td><td>43</td></tr><tr><th>Jev and Laya</th><td>452 / 726 · 62%</td><td>49</td></tr></tbody></table></div></div>
+<div class="panel"><div class="scroll"><table><thead><tr><th></th><th>Claude Opus 5</th><th>Jev</th><th>Laya</th></tr></thead><tbody>
+<tr><th>price, all 1,834 questions</th><td>$194 API-equivalent, run on a subscription, not charged</td><td class="hi">≈ $0.07</td><td class="hi">$0, local</td></tr>
+<tr><th>median time per exchange</th><td>19.7 s</td><td class="hi">0.35 s</td><td>0.45 s</td></tr>
+<tr><th>wall clock, 449 exchanges</th><td>91 min, four at a time, with rate-limit pauses</td><td class="hi">164 s</td><td>221 s</td></tr>
+<tr><th>errors</th><td>0</td><td>0</td><td>0</td></tr>
+</tbody></table></div></div>
+<div class="read">
+<div class="panel">
+  <div class="row"><div><span class="k">Claude is the clear winner on correctness.</span><span class="d">First or tied on every role, and a Brier score 40% lower than Jev's. The gap is widest on spec alignment, 0.88 against 0.76, where Jev puts 0.61 on clean specs and Claude 0.46.</span></div><div class="v">0.915<small>Claude accuracy</small></div></div>
+  <div class="row"><div><span class="k">Jev is the clear winner on value.</span><span class="d">93% of Claude's accuracy for about one three-thousandth of the price, fifty times faster. On test review and task alignment it is within five points of Claude.</span></div><div class="v">93%<small>of Claude, Jev</small></div></div>
+  <div class="row"><div><span class="k">Laya does not read the case.</span><span class="d">Its probability of a defect is the same on clean and defective cases in every role, and it is right alone on only 16 questions.</span></div><div class="v">0.634<small>Laya accuracy</small></div></div>
+  <div class="row"><div><span class="k">Plan review is a tie the question forces.</span><span class="d">Claude and Jev each flag 15 of the 20 clean plans and miss none of the defective ones. "Any of seven lenses says block" is too easy to trip; the question is the limit, not the model.</span></div><div class="v">15 / 20<small>clean plans flagged, both</small></div></div>
+  <div class="row"><div><span class="k">Jev's errors overlap Claude's, but not completely.</span><span class="d">32 questions are missed by both. Jev alone catches 27 that Claude misses, so as a second opinion to Claude it would add a little, not a lot.</span></div><div class="v">32<small>missed by both</small></div></div>
+  <div class="row"><div><span class="k">This is Claude in the typed judges' seat.</span><span class="d">Here it answers typed questions without tools, one reply per exchange. The production judge reads files with tools and writes findings; on the test-review corpus it scored 30 of 30.</span></div><div class="v">30/30<small>production judge, test review</small></div></div>
+</div>
+</div>
+<div class="read">
+<h2>Why a typed judge at all</h2>
+<p>A text-generating judge costs about $0.57 and 45 seconds per case. Re-running a thirty-case corpus after a prompt edit is $17 and 25 minutes; recalibrating five roles is about $90 and two and a half hours. Jev answers a corpus for half a cent in twelve seconds, the local models for nothing in a similar time. That is what makes prompt iteration on judges affordable, whichever typed model is chosen.</p>
+
+<h2 id="findings">Findings</h2>
+<ol>
+<li><b>Check what the state leaks before believing a score.</b> Paths, IDs and filenames are text to a model. The first 30 of 30 was the label.</li>
+<li><b>A score a constant answer can earn is not a score.</b> Report the clean-case column and the per-question probabilities; the graded total alone ranked Kev 4B first among open models when its per-test judgement was at chance.</li>
+<li><b>Sub-1B encoders do not discriminate on review-sized states.</b> Laya, Von and Kev 0.8B give the same probability whatever the case. Shrinking the state to the test file and the brief did not help them.</li>
+<li><b>Nimble 9B reads the test but is starved.</b> Its 2,048-token limit removes the brief and criteria on every role but the minimal one; it is the only open model with a calibrated per-test judgement.</li>
+<li><b>Kev 4B is confident and wrong on diffs.</b> Decisive probabilities, near-zero probability of a defect on planted defects in the alignment and code roles.</li>
+<li><b>Jev is the reference among typed models.</b> Accuracy 0.89 to 0.97 with Brier 0.05 to 0.11 on four roles, and the only model whose lens answers stay low on clean tests.</li>
+<li><b>Claude is the most accurate; Jev is the best value.</b> On all 1,834 replayed questions, Claude is right on 91.5% of the 726 gradable ones, Jev on 85.4%, Laya on 63.4%. Jev costs about one three-thousandth as much and answers fifty times faster.</li>
+<li><b>Two judges are worth their cost only if their errors are independent.</b> No case was missed by both Jev and the text-generating judge; that is a hint, and the real measurement is the disagreement rate on live runs, which this benchmark does not contain.</li>
+</ol>
+
+<div class="cta"><h2>Reproducing</h2><p>The harness records, for every case, the questions, the raw answers, the cost, the time and the state hash, pinned to the digest of the judge definition; the state text is stored once by hash. A new system is a transport and a model name. It answers the same questions on the same bytes and is compared case by case and question by question against any earlier record. Regrading is a re-read of stored replies, not a re-run.</p><p><a href="REPORT.md" style="color:#fff;text-decoration:underline">Read the full written report</a> · data summaries in <code>data/</code>, including the three-way comparison with Claude</p></div>
+
+<div class="hair"></div>
+<p class="meta">Limitations: thirty cases per role, hand-authored; run-to-run variance of about one case in thirty for the hosted model; the diff-role grader still admits the flag-everything route; local latencies were measured with other models loaded; Nimble and Kev 4B ran on a shared free-tier GPU with capped or reordered state; NanoJev was not run.</p>
+</div>
+</main>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var io = ('IntersectionObserver' in window) ? new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('inview');io.unobserve(e.target);}});},{threshold:.2}) : null;
+  document.querySelectorAll('.panel').forEach(function(p){ if(io && !reduce) io.observe(p); else p.classList.add('inview'); });
+  if(reduce) return;
+  document.querySelectorAll('.stats .n').forEach(function(el){
+    var txt = el.textContent.trim(); var m = txt.match(/^([$]?)([\d,]+(?:\.\d+)?)(%?)$/); if(!m) return;
+    var target = parseFloat(m[2].replace(/,/g,'')); var dec = (m[2].split('.')[1]||'').length; var t0 = null;
+    function step(t){ if(!t0) t0=t; var k=Math.min(1,(t-t0)/1100); k=1-Math.pow(1-k,3); var v=target*k;
+      el.textContent = m[1] + (dec? v.toFixed(dec) : Math.round(v).toLocaleString()) + m[3]; if(k<1) requestAnimationFrame(step); }
+    requestAnimationFrame(step);
+  });
+})();
+</script>
+</body>
+</html>

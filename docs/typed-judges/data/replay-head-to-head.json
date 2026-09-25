@@ -1,0 +1,119 @@
+{
+ "exchanges_paired": 449,
+ "questions_paired": 1834,
+ "per_type": {
+  "noul": 838,
+  "choice": 996
+ },
+ "choice_label_agreement": 0.323,
+ "noul_same_side": 0.703,
+ "noul_mean_abs_gap": 0.189,
+ "jev": {
+  "cost_usd": 0.0,
+  "errors": 0,
+  "median_latency_s": 0.35
+ },
+ "laya": {
+  "cost_usd": 0.0,
+  "errors": 0,
+  "median_latency_s": 0.45
+ },
+ "by_corpus": {
+  "code_reviewer/full": {
+   "jev": {
+    "n": 90,
+    "accuracy": 0.889,
+    "brier": 0.114,
+    "p_clean": 0.37,
+    "p_defect": 0.754
+   },
+   "laya": {
+    "n": 90,
+    "accuracy": 0.667,
+    "brier": 0.244,
+    "p_clean": 0.765,
+    "p_defect": 0.745
+   }
+  },
+  "plan_reviewer/full": {
+   "jev": {
+    "n": 60,
+    "accuracy": 0.333,
+    "brier": 0.357,
+    "p_clean": 0.136,
+    "p_defect": 0.281
+   },
+   "laya": {
+    "n": 60,
+    "accuracy": 0.333,
+    "brier": 0.416,
+    "p_clean": 0.224,
+    "p_defect": 0.227
+   }
+  },
+  "spec_reviewer/full": {
+   "jev": {
+    "n": 89,
+    "accuracy": 0.719,
+    "brier": 0.176,
+    "p_clean": 0.696,
+    "p_defect": 0.91
+   },
+   "laya": {
+    "n": 89,
+    "accuracy": 0.674,
+    "brier": 0.234,
+    "p_clean": 0.703,
+    "p_defect": 0.675
+   }
+  },
+  "task_reviewer/full": {
+   "jev": {
+    "n": 90,
+    "accuracy": 0.889,
+    "brier": 0.091,
+    "p_clean": 0.233,
+    "p_defect": 0.761
+   },
+   "laya": {
+    "n": 90,
+    "accuracy": 0.644,
+    "brier": 0.234,
+    "p_clean": 0.616,
+    "p_defect": 0.606
+   }
+  },
+  "test_reviewer/full": {
+   "jev": {
+    "n": 90,
+    "accuracy": 0.933,
+    "brier": 0.07,
+    "p_clean": 0.182,
+    "p_defect": 0.881
+   },
+   "laya": {
+    "n": 90,
+    "accuracy": 0.667,
+    "brier": 0.22,
+    "p_clean": 0.707,
+    "p_defect": 0.726
+   }
+  },
+  "test_reviewer/minimal": {
+   "jev": {
+    "n": 30,
+    "accuracy": 0.767,
+    "brier": 0.121,
+    "p_clean": 0.159,
+    "p_defect": 0.793
+   },
+   "laya": {
+    "n": 30,
+    "accuracy": 0.667,
+    "brier": 0.257,
+    "p_clean": 0.848,
+    "p_defect": 0.842
+   }
+  }
+ }
+}
