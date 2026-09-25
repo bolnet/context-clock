@@ -9,7 +9,8 @@ LLM agent burns as a conversation grows — and proves that retrieved memory cut
 
 **🔗 Live:** [the benchmark, visualized](https://bolnet.github.io/context-clock/) ·
 [animated deep-dive](https://bolnet.github.io/context-clock/context-clock-benchmark.html) ·
-[agent token economics](https://bolnet.github.io/context-clock/agent-token-economics.html)
+[agent token economics](https://bolnet.github.io/context-clock/agent-token-economics.html) ·
+[Jev typed-judges analysis](https://bolnet.github.io/context-clock/typed-judges/report.html)
 
 ---
 
@@ -134,4 +135,4 @@ MIT. No lock-in.
 
 ## Related report
 
-[Typed decision models as code-review judges](docs/typed-judges/REPORT.md) ([page](https://bolnet.github.io/context-clock/docs/typed-judges/report.html)) — Jev and every open-source Jev-class alternative on a 150-case known-verdict review corpus: the label leak that faked a 30/30, the grader route a constant answer can game, and per-question calibration for each system.
+[Typed decision models as code-review judges](docs/typed-judges/REPORT.md) ([page](https://bolnet.github.io/context-clock/typed-judges/report.html)) — Jev and every open-source Jev-class alternative on a 150-case known-verdict review corpus: the label leak that faked a 30/30, the grader route a constant answer can game, and per-question calibration for each system.
