@@ -133,4 +133,4 @@ MIT. No lock-in.
 
 ## Related report
 
-[Typed decision models as code-review judges](docs/typed-judges/REPORT.md) — Jev and every open-source Jev-class alternative on a 150-case known-verdict review corpus: the label leak that faked a 30/30, the grader route a constant answer can game, and per-question calibration for each system.
+[Typed decision models as code-review judges](docs/typed-judges/REPORT.md) ([page](https://bolnet.github.io/context-clock/docs/typed-judges/report.html)) — Jev and every open-source Jev-class alternative on a 150-case known-verdict review corpus: the label leak that faked a 30/30, the grader route a constant answer can game, and per-question calibration for each system.
