@@ -84,6 +84,7 @@ All on a 16 GB Apple M2 Pro unless stated. "Space" is the author's Hugging Face 
 | SemIf (TheoLeeCJ) | no decision model: option logits of a frozen base LLM | `semif-score --mode direct` over Qwen3.5-0.8B on MLX |
 | Bespoke Nimble 9B | 9B, candidate-logit scoring | Space; hard 2,048-token prompt limit, state capped at 3,400 chars |
 | NanoJev (TianyuCodings) | Qwen3-0.6B + decision heads | **not run**: the predictor raises without a CUDA device; no Space, no endpoint, not on OpenRouter or NVIDIA's catalog |
+| CLM-8B (Contrastive-LM, Stanford/NVIDIA) | frozen Qwen3-8B encoder + ~20M-parameter contrastive heads, released 2026-09-23 | local, 8-bit MLX port of the encoder + upstream `clm-serve`; 8,192-token window, whole state in Jev's order (added 2026-09-27, see below) |
 
 ## Results
 
@@ -224,6 +225,52 @@ Who got each of the 726 right:
 - **Jev's errors overlap Claude's more than Laya's do, but not completely.** 32 questions are missed by both Claude and Jev. Jev alone catches 27 that Claude misses. A second vote only helps where errors are independent, and 27 against 32 says Jev as a second opinion to Claude would add a little, not a lot.
 - **This is Claude in the typed judges' seat, not the production judge.** Here it answers typed questions without tools, one reply per exchange. The production judge reads files with tools and writes findings; on the test-review corpus it scored 30 of 30.
 
+## CLM-8B, the open System One model, on the same questions
+
+*Added 2026-09-27.* Four days after this report, Stanford and NVIDIA released [CLM-v0.1-8B](https://huggingface.co/Contrastive-LM/CLM-v0.1-8B): a frozen Qwen3-8B encoder with two contrastive projection heads of about 20M parameters, scoring a state against candidate actions with no text generation, Apache 2.0. It is the first open model pitched directly at Jev's job, so it was put on the same questions.
+
+**How it ran.** Nobody hosts it (no Space, no inference provider, not on OpenRouter or NVIDIA's catalog), so it ran on the 16 GB M2 Pro through an 8-bit MLX port of the encoder (group-32; decisive top-1 agreement with the bf16 weights measured at 1.0000) with upstream's `clm-serve` unchanged in front. Upstream serves the encoder at 2,048 tokens; the arm reported here raised that to 8,192 so the whole review state fits, in the same prompt-first order Jev sees. A 2,048-token arm, evidence first, was started and stopped at 192 of 443 exchanges once it was clear it trailed the 8k arm (55.3% against 60.2% on the 284 questions both had answered); it is not reported further.
+
+**What was replayed.** The recorded exchanges were replayed through Jev again on 2026-09-26 and through CLM-8B on 2026-09-27, byte-identical state and questions. Six plan-review positives had been rewritten since the Claude replay (they left the spec's balance constraint uncovered, and the judge was right to block them), so 443 of the 449 exchanges are reproducible from today's corpus and 720 questions are gradable, not 726. That is why Jev's figures in this section differ by a point from the section above: a fresh run on a slightly different corpus, not a re-grade.
+
+| role | graded | Jev acc / Brier | CLM-8B acc / Brier |
+|---|---|---|---|
+| test reviewer | 128 | **0.88 / 0.08** | 0.63 / 0.37 |
+| task alignment | 180 | **0.93 / 0.06** | 0.50 / 0.27 |
+| code review | 180 | **0.90 / 0.10** | 0.64 / 0.25 |
+| spec alignment | 178 | **0.76 / 0.16** | 0.44 / 0.29 |
+| plan review | 54 | **0.83 / 0.13** | 0.74 / 0.22 |
+| **all** | **720** | **0.865 / 0.101** | **0.561 / 0.283** |
+
+A coin flip scores about 0.5 accuracy and a Brier of 0.25 on these questions. CLM-8B is above the coin on accuracy and below it on Brier.
+
+Mean probability of a defect on clean cases and on defective ones:
+
+| role | Jev | CLM-8B |
+|---|---|---|
+| test reviewer | 0.15 → 0.85 | 1.00 → 1.00 |
+| task alignment | 0.15 → 0.84 | 0.53 → 0.54 |
+| code review | 0.32 → 0.79 | 0.70 → 0.70 |
+| spec alignment | 0.60 → 0.90 | 0.49 → 0.48 |
+| plan review | 0.60 → 0.81 | 0.90 → 0.91 |
+
+Who got each of the 720 right: both 356, Jev only 267, CLM-8B only 48, neither 49. Same side on 405 of 720 (56%).
+
+| | Jev | CLM-8B, 8k window |
+|---|---|---|
+| median time per exchange | 0.22 s | 58.9 s |
+| sum of per-exchange time, 443 exchanges | under 2 min | 7.2 h, one at a time |
+| errors | 0 | 0 |
+| price | as above | $0, local |
+
+**Analysis.**
+
+- **CLM-8B does not read the case either.** Its probability of a defect is the same on clean and defective states in every role, within 0.02, and on test review it returns 1.0 for every per-test label. That is the Laya pattern at ten times the parameters.
+- **It is right alone on 48 questions**, three times Laya's 16, so it is not a constant answer; but Jev is right alone on 267.
+- **The window is not the explanation.** The 8k arm saw the whole state and beat the 2k arm; more context did not turn the probabilities into a reader's.
+- **Quantization is unlikely to be the explanation.** The 8-bit port agrees with the full weights on every decisive top-1 in the parity check, and a 30-point gap is not an 8-bit artefact.
+- **The more plausible reading** is that the contrastive heads were trained to rank an agent's candidate actions against a state, not to answer a typed review question about a diff; the release's own DeepSWE heads had to be fine-tuned for best-of-N code selection. Only the heads train, so fine-tuning on these corpora is cheap, but that would make CLM a tuned competitor, and this section reports it out of the box. A CLM-35B is announced for October and was not available.
+
 ## Cost and time, for calibration loops
 
 The reason to want a typed judge at all: a text-generating judge costs about $0.57 and 45 seconds per case, so re-running a 30-case corpus after a prompt edit is $17 and 25 minutes, and recalibrating five roles is about $90 and two and a half hours. Jev answers a corpus for half a cent in twelve seconds; the local models for nothing in a similar time. That is what makes prompt iteration on judges affordable, independent of which typed model is chosen.
@@ -237,11 +284,12 @@ The reason to want a typed judge at all: a text-generating judge costs about $0.
 5. **Kev 4B is confident and wrong on diffs.** Decisive probabilities, near-zero P(defect) on planted defects in the alignment and code roles.
 6. **Jev is the reference among typed models.** Accuracy 0.89 to 0.97 with Brier 0.05 to 0.11 on four roles, one shared miss with no other system across 150 cases, and the only model whose lens answers stay low on clean tests.
 7. **Claude is the most accurate typed-question answerer; Jev is the best value.** Replayed on all 1,834 questions, Claude is right on 91.5% of the 726 gradable ones, Jev on 85.4%, Laya on 63.4%. Jev costs about one three-thousandth as much and answers fifty times faster.
-8. **Two judges are worth their cost only if their errors are independent.** Zero cases were missed by both Jev and the text-generating judge on any corpus; that is a hint, not proof, and the real measurement is the disagreement rate on live runs, which this benchmark does not contain.
+8. **CLM-8B, the open model built for this job, does not do it out of the box.** On the same 720 gradable questions it is right on 56.1% with a Brier of 0.283, and its probability of a defect does not move between clean and defective states. Jev is right on 86.5%.
+9. **Two judges are worth their cost only if their errors are independent.** Zero cases were missed by both Jev and the text-generating judge on any corpus; that is a hint, not proof, and the real measurement is the disagreement rate on live runs, which this benchmark does not contain.
 
 ## Limitations
 
-Thirty cases per role, hand-authored, and run-to-run variance of about one case in thirty for the hosted model. The diff-role grader still admits the flag-everything route. The plan-review grader is task-id based and unfair to per-lens judges. Local latencies were measured with other models loaded and are upper bounds. Nimble and Kev 4B ran on a shared free-tier GPU and were state-capped or state-reordered; their full-state behaviour on a large GPU is untested. NanoJev was not run.
+Thirty cases per role, hand-authored, and run-to-run variance of about one case in thirty for the hosted model. The diff-role grader still admits the flag-everything route. The plan-review grader is task-id based and unfair to per-lens judges. Local latencies were measured with other models loaded and are upper bounds. Nimble and Kev 4B ran on a shared free-tier GPU and were state-capped or state-reordered; their full-state behaviour on a large GPU is untested. NanoJev was not run. CLM-8B ran as an 8-bit quantization of its encoder on a laptop, past its published 2,048-token window; its latency is the laptop's, not the model's.
 
 ## Reproducing
 
@@ -250,3 +298,4 @@ The harness records, for every case, the questions, the raw answers, the cost, t
 - `data/scores-and-calibration.json`: per role and system, graded score, clean cases passed, accuracy, Brier, ECE, mean P(defect) by kind, median latency, cost.
 - `data/replay-head-to-head.json`: the Jev-versus-Laya replay on identical questions.
 - `data/three-way-with-claude.json`: Claude, Jev and Laya on the 726 gradable questions, by role and by question kind, pairwise agreement, and who got each question right.
+- `data/clm-8k-head-to-head.json`: Jev and CLM-8B (8,192-token window) on the 720 gradable questions of the 443 exchanges reproducible on 2026-09-27, same breakdowns.
