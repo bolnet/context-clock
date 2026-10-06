@@ -1,0 +1,175 @@
+{
+ "n_exchanges": 443,
+ "n_graded": 720,
+ "systems": {
+  "jev": {
+   "overall": {
+    "n": 720,
+    "accuracy": 0.865,
+    "brier": 0.101,
+    "p_clean": 0.33,
+    "p_defect": 0.84
+   },
+   "by_role": {
+    "code_reviewer": {
+     "n": 180,
+     "accuracy": 0.9,
+     "brier": 0.095,
+     "p_clean": 0.32,
+     "p_defect": 0.79
+    },
+    "plan_reviewer": {
+     "n": 54,
+     "accuracy": 0.833,
+     "brier": 0.127,
+     "p_clean": 0.6,
+     "p_defect": 0.81
+    },
+    "spec_reviewer": {
+     "n": 178,
+     "accuracy": 0.764,
+     "brier": 0.156,
+     "p_clean": 0.6,
+     "p_defect": 0.9
+    },
+    "task_reviewer": {
+     "n": 180,
+     "accuracy": 0.933,
+     "brier": 0.058,
+     "p_clean": 0.15,
+     "p_defect": 0.84
+    },
+    "test_reviewer": {
+     "n": 128,
+     "accuracy": 0.875,
+     "brier": 0.084,
+     "p_clean": 0.15,
+     "p_defect": 0.85
+    }
+   },
+   "by_kind": {
+    "defect noul": {
+     "n": 269,
+     "accuracy": 0.836,
+     "brier": 0.125,
+     "p_clean": 0.43,
+     "p_defect": 0.81
+    },
+    "per-test label": {
+     "n": 128,
+     "accuracy": 0.875,
+     "brier": 0.084,
+     "p_clean": 0.15,
+     "p_defect": 0.85
+    },
+    "plan: any lens blocks": {
+     "n": 54,
+     "accuracy": 0.833,
+     "brier": 0.127,
+     "p_clean": 0.6,
+     "p_defect": 0.81
+    },
+    "verdict": {
+     "n": 269,
+     "accuracy": 0.896,
+     "brier": 0.08,
+     "p_clean": 0.28,
+     "p_defect": 0.88
+    }
+   },
+   "reported_cost_usd": 0.0,
+   "median_latency_s": 0.22
+  },
+  "clm-8k": {
+   "overall": {
+    "n": 720,
+    "accuracy": 0.561,
+    "brier": 0.283,
+    "p_clean": 0.68,
+    "p_defect": 0.67
+   },
+   "by_role": {
+    "code_reviewer": {
+     "n": 180,
+     "accuracy": 0.639,
+     "brier": 0.25,
+     "p_clean": 0.7,
+     "p_defect": 0.7
+    },
+    "plan_reviewer": {
+     "n": 54,
+     "accuracy": 0.741,
+     "brier": 0.22,
+     "p_clean": 0.9,
+     "p_defect": 0.91
+    },
+    "spec_reviewer": {
+     "n": 178,
+     "accuracy": 0.444,
+     "brier": 0.29,
+     "p_clean": 0.49,
+     "p_defect": 0.48
+    },
+    "task_reviewer": {
+     "n": 180,
+     "accuracy": 0.5,
+     "brier": 0.265,
+     "p_clean": 0.53,
+     "p_defect": 0.54
+    },
+    "test_reviewer": {
+     "n": 128,
+     "accuracy": 0.625,
+     "brier": 0.373,
+     "p_clean": 1.0,
+     "p_defect": 1.0
+    }
+   },
+   "by_kind": {
+    "defect noul": {
+     "n": 269,
+     "accuracy": 0.517,
+     "brier": 0.253,
+     "p_clean": 0.55,
+     "p_defect": 0.54
+    },
+    "per-test label": {
+     "n": 128,
+     "accuracy": 0.625,
+     "brier": 0.373,
+     "p_clean": 1.0,
+     "p_defect": 1.0
+    },
+    "plan: any lens blocks": {
+     "n": 54,
+     "accuracy": 0.741,
+     "brier": 0.22,
+     "p_clean": 0.9,
+     "p_defect": 0.91
+    },
+    "verdict": {
+     "n": 269,
+     "accuracy": 0.539,
+     "brier": 0.284,
+     "p_clean": 0.6,
+     "p_defect": 0.6
+    }
+   },
+   "reported_cost_usd": 0.0,
+   "median_latency_s": 58.9
+  }
+ },
+ "pairs": {
+  "jev vs clm-8k": {
+   "n": 720,
+   "same_side": 405,
+   "both_wrong": 49
+  }
+ },
+ "correct_sets": {
+  "jev+clm-8k": 356,
+  "jev": 267,
+  "none": 49,
+  "clm-8k": 48
+ }
+}

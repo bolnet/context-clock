@@ -1,0 +1,42 @@
+{
+ "claude": {
+  "n": 726,
+  "wrong": 62
+ },
+ "jev": {
+  "n": 726,
+  "wrong": 106
+ },
+ "opus-5-5": {
+  "n": 726,
+  "wrong": 40
+ },
+ "sonnet-5-5": {
+  "n": 726,
+  "wrong": 103
+ },
+ "opus-5-5 vs claude": {
+  "a_right_b_wrong": 31,
+  "b_right_a_wrong": 9,
+  "both_wrong": 31,
+  "mcnemar_p": 0.0007
+ },
+ "sonnet-5-5 vs jev": {
+  "a_right_b_wrong": 54,
+  "b_right_a_wrong": 51,
+  "both_wrong": 52,
+  "mcnemar_p": 0.8454
+ },
+ "sonnet-5-5 vs opus-5-5": {
+  "a_right_b_wrong": 8,
+  "b_right_a_wrong": 71,
+  "both_wrong": 32,
+  "mcnemar_p": 0.0
+ },
+ "opus-5-5 vs jev": {
+  "a_right_b_wrong": 84,
+  "b_right_a_wrong": 18,
+  "both_wrong": 22,
+  "mcnemar_p": 0.0
+ }
+}
