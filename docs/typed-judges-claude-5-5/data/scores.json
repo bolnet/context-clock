@@ -1,0 +1,292 @@
+{
+ "jev": {
+  "overall": {
+   "n": 726,
+   "accuracy": 0.854,
+   "brier": 0.107
+  },
+  "by_role": {
+   "code_reviewer": {
+    "n": 180,
+    "accuracy": 0.883,
+    "brier": 0.099
+   },
+   "plan_reviewer": {
+    "n": 60,
+    "accuracy": 0.75,
+    "brier": 0.18
+   },
+   "spec_reviewer": {
+    "n": 178,
+    "accuracy": 0.758,
+    "brier": 0.158
+   },
+   "task_reviewer": {
+    "n": 180,
+    "accuracy": 0.922,
+    "brier": 0.06
+   },
+   "test_reviewer": {
+    "n": 128,
+    "accuracy": 0.898,
+    "brier": 0.078
+   }
+  },
+  "by_kind": {
+   "defect noul": {
+    "n": 269,
+    "accuracy": 0.833,
+    "brier": 0.127
+   },
+   "per-test label": {
+    "n": 128,
+    "accuracy": 0.898,
+    "brier": 0.078
+   },
+   "plan: any lens blocks": {
+    "n": 60,
+    "accuracy": 0.75,
+    "brier": 0.18
+   },
+   "verdict": {
+    "n": 269,
+    "accuracy": 0.877,
+    "brier": 0.084
+   }
+  },
+  "errors": 0,
+  "cost_usd": 0.0
+ },
+ "laya": {
+  "overall": {
+   "n": 726,
+   "accuracy": 0.634,
+   "brier": 0.249
+  },
+  "by_role": {
+   "code_reviewer": {
+    "n": 180,
+    "accuracy": 0.678,
+    "brier": 0.232
+   },
+   "plan_reviewer": {
+    "n": 60,
+    "accuracy": 0.333,
+    "brier": 0.362
+   },
+   "spec_reviewer": {
+    "n": 178,
+    "accuracy": 0.674,
+    "brier": 0.236
+   },
+   "task_reviewer": {
+    "n": 180,
+    "accuracy": 0.656,
+    "brier": 0.235
+   },
+   "test_reviewer": {
+    "n": 128,
+    "accuracy": 0.625,
+    "brier": 0.256
+   }
+  },
+  "by_kind": {
+   "defect noul": {
+    "n": 269,
+    "accuracy": 0.662,
+    "brier": 0.237
+   },
+   "per-test label": {
+    "n": 128,
+    "accuracy": 0.625,
+    "brier": 0.256
+   },
+   "plan: any lens blocks": {
+    "n": 60,
+    "accuracy": 0.333,
+    "brier": 0.362
+   },
+   "verdict": {
+    "n": 269,
+    "accuracy": 0.677,
+    "brier": 0.231
+   }
+  },
+  "errors": 0,
+  "cost_usd": 0.0
+ },
+ "claude": {
+  "overall": {
+   "n": 726,
+   "accuracy": 0.915,
+   "brier": 0.066
+  },
+  "by_role": {
+   "code_reviewer": {
+    "n": 180,
+    "accuracy": 0.922,
+    "brier": 0.067
+   },
+   "plan_reviewer": {
+    "n": 60,
+    "accuracy": 0.75,
+    "brier": 0.18
+   },
+   "spec_reviewer": {
+    "n": 178,
+    "accuracy": 0.876,
+    "brier": 0.076
+   },
+   "task_reviewer": {
+    "n": 180,
+    "accuracy": 0.972,
+    "brier": 0.039
+   },
+   "test_reviewer": {
+    "n": 128,
+    "accuracy": 0.953,
+    "brier": 0.037
+   }
+  },
+  "by_kind": {
+   "defect noul": {
+    "n": 269,
+    "accuracy": 0.944,
+    "brier": 0.049
+   },
+   "per-test label": {
+    "n": 128,
+    "accuracy": 0.953,
+    "brier": 0.037
+   },
+   "plan: any lens blocks": {
+    "n": 60,
+    "accuracy": 0.75,
+    "brier": 0.18
+   },
+   "verdict": {
+    "n": 269,
+    "accuracy": 0.903,
+    "brier": 0.071
+   }
+  },
+  "errors": 0,
+  "cost_usd": 194.26
+ },
+ "opus-5-5": {
+  "overall": {
+   "n": 726,
+   "accuracy": 0.945,
+   "brier": 0.051
+  },
+  "by_role": {
+   "code_reviewer": {
+    "n": 180,
+    "accuracy": 0.933,
+    "brier": 0.05
+   },
+   "plan_reviewer": {
+    "n": 60,
+    "accuracy": 0.733,
+    "brier": 0.162
+   },
+   "spec_reviewer": {
+    "n": 178,
+    "accuracy": 0.972,
+    "brier": 0.05
+   },
+   "task_reviewer": {
+    "n": 180,
+    "accuracy": 0.978,
+    "brier": 0.029
+   },
+   "test_reviewer": {
+    "n": 128,
+    "accuracy": 0.977,
+    "brier": 0.031
+   }
+  },
+  "by_kind": {
+   "defect noul": {
+    "n": 269,
+    "accuracy": 0.967,
+    "brier": 0.039
+   },
+   "per-test label": {
+    "n": 128,
+    "accuracy": 0.977,
+    "brier": 0.031
+   },
+   "plan: any lens blocks": {
+    "n": 60,
+    "accuracy": 0.733,
+    "brier": 0.162
+   },
+   "verdict": {
+    "n": 269,
+    "accuracy": 0.955,
+    "brier": 0.047
+   }
+  },
+  "errors": 0,
+  "cost_usd": 146.57
+ },
+ "sonnet-5-5": {
+  "overall": {
+   "n": 726,
+   "accuracy": 0.858,
+   "brier": 0.102
+  },
+  "by_role": {
+   "code_reviewer": {
+    "n": 180,
+    "accuracy": 0.933,
+    "brier": 0.046
+   },
+   "plan_reviewer": {
+    "n": 60,
+    "accuracy": 0.733,
+    "brier": 0.144
+   },
+   "spec_reviewer": {
+    "n": 178,
+    "accuracy": 0.764,
+    "brier": 0.177
+   },
+   "task_reviewer": {
+    "n": 180,
+    "accuracy": 0.939,
+    "brier": 0.048
+   },
+   "test_reviewer": {
+    "n": 128,
+    "accuracy": 0.828,
+    "brier": 0.133
+   }
+  },
+  "by_kind": {
+   "defect noul": {
+    "n": 269,
+    "accuracy": 0.9,
+    "brier": 0.081
+   },
+   "per-test label": {
+    "n": 128,
+    "accuracy": 0.828,
+    "brier": 0.133
+   },
+   "plan: any lens blocks": {
+    "n": 60,
+    "accuracy": 0.733,
+    "brier": 0.144
+   },
+   "verdict": {
+    "n": 269,
+    "accuracy": 0.859,
+    "brier": 0.099
+   }
+  },
+  "errors": 0,
+  "cost_usd": 73.52
+ }
+}

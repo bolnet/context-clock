@@ -1,0 +1,26 @@
+{
+ "claude": {
+  "model": "claude-opus-5",
+  "n_exchanges": 449,
+  "n_questions": 1834,
+  "errors": 0,
+  "api_equivalent_usd": 194.26,
+  "billing": "claude.ai subscription; API-equivalent price reported by claude -p, not charged"
+ },
+ "opus-5-5": {
+  "model": "claude-opus-5-5",
+  "n_exchanges": 449,
+  "n_questions": 1834,
+  "errors": 0,
+  "api_equivalent_usd": 146.57,
+  "billing": "claude.ai subscription; API-equivalent price reported by claude -p, not charged"
+ },
+ "sonnet-5-5": {
+  "model": "claude-sonnet-5-5",
+  "n_exchanges": 449,
+  "n_questions": 1834,
+  "errors": 0,
+  "api_equivalent_usd": 73.52,
+  "billing": "claude.ai subscription; API-equivalent price reported by claude -p, not charged"
+ }
+}
